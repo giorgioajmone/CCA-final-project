@@ -27,7 +27,7 @@ interface RVIfc#(numeric type addr_bits, numeric type resp_bits);
     method ActionValue#(void) restarted;
     method ActionValue#(void) canonicalized;
 
-    method Action requestRF(addr_bits addr);
+    method Action request(idx_bits , addr_bits addr);
     method ActionValue#(Bit#(resp_bits)) responseRF;
 
 endinterface

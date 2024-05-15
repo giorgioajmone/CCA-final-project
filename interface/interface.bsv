@@ -1,4 +1,19 @@
 /*
+bits to represent all the components: 
+type -> component_bits (log2 of nr components)
+name -> id
+
+bits to represent the indexable information:
+type -> address_bits (log2 of max(addresses)) 
+name -> address
+
+0 processor
+    0: rf + pc
+1-3
+    1 -> 0: L1i
+    2 -> 1: L1d
+    3 -> 2: L2
+
 
 Requests: (from Host to Interface)
     - halt()
@@ -37,7 +52,7 @@ interface F2GIfc;
     method Action request(Bit#(nrComponents) id, Bit#(Log2MaxSize) addr);
 
     method ActionValue#(void) ready;
-    method ActionValue#(Bit#(512)) response;
+    method ActionValue#(Bit#(512)) response(Bit#(nrComponents) id);
 endinterface
 
 typedef `NUM_COMPONENTS ComponentsNum;
@@ -49,26 +64,26 @@ module mkInterface#(F2GIfc);
     FIFO#(nrComponents) inFlightRequest <- mkBypassFIFO;
     FIFO#(nrComponents) inFlightResponse <- mkBypassFIFO;
 
-    Core dut <- mkPipelined;
+    Core core <- mkPipelined;
     
     method Action restart if(!inFlightRequest.notEmpty);
-        dut.restart();
+        core.restart();
     endmethod
     
     method Action canonicalize;
-        dut.canonicalize();
+        core.canonicalize();
     endmethod
     
     method Action halt;
-        dut.halt();
+        core.halt();
     endmethod
 
     method ActionValue#(void) halted;
-        dut.halted();
+        core.halted();
     endmethod
 
     method ActionValue#(void) canonicalized;
-        dut.canonicalized();
+        core.canonicalized();
     endmethod
 
     FIFO#(nrComponents) inFlightRequest <- mkBypassFIFO;
@@ -76,13 +91,13 @@ module mkInterface#(F2GIfc);
 
     rule waitResponse;
         let component = inFlightRequest.first(); inFlightRequest.deq();
-        let data <- dut.components[component].response();
+        let data <- core.response(component);
         inFlightResponse.enq(data);
     endrule 
 
     method Action request(Bit#(nrComponents) id, Bit#(Log2MaxSize) addr);
         inFlightRequest.enq(id);
-        dut.components[id].request(addr);
+        core.request(addr);
     endmethod
 
     method ActionValue#(Bit#(512)) response;
