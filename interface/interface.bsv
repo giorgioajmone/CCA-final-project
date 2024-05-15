@@ -51,7 +51,7 @@ module mkInterface#(F2GIfc);
 
     Core dut <- mkPipelined;
     
-    method Action restart;
+    method Action restart if(!inFlightRequest.notEmpty);
         dut.restart();
     endmethod
     

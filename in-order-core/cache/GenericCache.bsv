@@ -13,6 +13,14 @@ interface GenericCache#(numeric type addrcpuBits, numeric type datacpuBits, nume
     method ActionValue#(GenericCacheReq#(addrmemBits, datamemBits)) getToMem();
     method Action putFromMem(Bit#(datamemBits) e);
     method Bit#(32) getMissCnt();
+
+    method Action requestLRU(idx_bits addr);
+    method ActionValue#(Bit#(resp_bits)) responseLRU;
+    method Action requestMeta(idx_bits addr);
+    method ActionValue#(Bit#(resp_bits)) responseMeta;
+    method Action requestData(idx_bits addr);
+    method ActionValue#(Bit#(resp_bits)) responseData;
+    
 endinterface
 
 module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datamemBits, numWords, numLogLines, numBanks, numWays, idx))

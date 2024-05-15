@@ -9,7 +9,7 @@ import CacheInterface::*;
 
 module mktop_pipelined(Empty);
 
-    CacheInterface cache <- mkCacheInterface();
+    CacheInterface(3, 512) cache <- mkCacheInterface();
 
     RVIfc#(5, 32) rv_core <- mkpipelined;
     FIFO#(Mem) ireq <- mkFIFO;

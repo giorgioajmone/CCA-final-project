@@ -23,13 +23,8 @@ interface CacheInterface#(numeric type cache_idx, numeric type addr_bits, numeri
     method ActionValue#(void) restarted;
     method ActionValue#(void) canonicalized;
 
-    method Action requestLRU(cache_idx c, idx_bits addr);
-    method ActionValue#(Bit#(resp_bits)) responseLRU;
-    method Action requestMeta(cache_idx c, idx_bits addr);
-    method ActionValue#(Bit#(resp_bits)) responseMeta;
-    method Action requestData(cache_idx c, idx_bits addr);
-    method ActionValue#(Bit#(resp_bits)) responseData;
-
+    method Action request(Bit#(nrComponents) id, Bit#(Set+way+info) addr);
+    method ActionValue#(Bit#(512)) response;
 endinterface
 
 typedef enum {

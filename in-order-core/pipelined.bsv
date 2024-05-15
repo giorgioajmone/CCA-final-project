@@ -399,7 +399,7 @@ module mkpipelined(RVIfc#(addr_bits, resp_bits));
         canonicalize <- True;
     endmethod
 
-    method ActionValue#(void) canonicalized if(!f2d.notEmpty && !d2e.notEmpty && !e2w.notEmpty);
+    method ActionValue#(void) canonicalized if(canonicalize && !f2d.notEmpty && !d2e.notEmpty && !e2w.notEmpty);
     endmethod    
 
     FIFO#(Bit#(resp_bits)) response <- mkBypassFIFO;
