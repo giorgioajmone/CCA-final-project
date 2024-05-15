@@ -137,20 +137,18 @@ module mkCore(Empty);
     method Action request(Bit#(nrComponents) id, Bit#(Set+way+info) addr);
         case(id)
             0: core.request(0);
-            1: core.request(1);
-            2: cache.request(0);
-            3: cache.request(1);
-            4: cache.request(2);
+            1: cache.request(0);
+            2: cache.request(1);
+            3: cache.request(2);
         endcase
     endmethod
 
     method ActionValue#(Bit#(512)) response(Bit#(nrComponents) id);
         let data <- case(id)
             0: core.response(0);
-            1: core.response(1);
-            2: cache.response(0);
-            3: cache.response(1);
-            4: cache.response(2);
+            1: cache.response(0);
+            2: cache.response(1);
+            3: cache.response(2);
         endcase
         return data;
     endmethod 

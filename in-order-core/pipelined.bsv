@@ -405,7 +405,10 @@ module mkpipelined(RVIfc#(addr_bits, resp_bits));
     FIFO#(Bit#(resp_bits)) response <- mkBypassFIFO;
 
     method Action requestRF(Bit#(addr_bits) addr) if(halted || canonicalize);
-        let data <- rf.read(addr);
+        let data <- case(address)
+            0: pc[]
+            default: rf.read(addr);
+        endcase
         response.enq(data);
     endmethod
 
