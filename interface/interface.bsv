@@ -95,7 +95,7 @@ module mkInterface#(F2GIfc);
         inFlightResponse.enq(data);
     endrule 
 
-    method Action request(Bit#(nrComponents) id, Bit#(Log2MaxSize) addr);
+    method Action request(Bit#(1) , Bit#(nrComponents) id, Bit#(Log2MaxSize) addr, Bit#(512) data);
         inFlightRequest.enq(id);
         core.request(addr);
     endmethod
