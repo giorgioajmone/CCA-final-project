@@ -27,10 +27,10 @@ Indications: (from Core to Interface)
 
 */
 
-import FIFOF::*;
+import FIFO::*;
 import SpecialFIFOs::*;
 
-interface Interface;
+interface F2GIfc;
     method Action halt;
     method Action canonicalize;
     method Action restart;
@@ -44,38 +44,50 @@ typedef `NUM_COMPONENTS ComponentsNum;
 typedef Bit#(TLog#(ComponentsNum)) nrComponents;
 
 (* synthesize *)
-module mkInterface#(nrComponents components);
+module mkInterface#(F2GIfc);
 
-    FIFOF#(nrComponents) inFlightRequest <- mkBypassFIFOF;
-    FIFOF#(nrComponents) inFlightResponse <- mkBypassFIFOF;
+    FIFO#(nrComponents) inFlightRequest <- mkBypassFIFO;
+    FIFO#(nrComponents) inFlightResponse <- mkBypassFIFO;
+
+    Core dut <- mkPipelined;
     
-    method request(Bit#(nrComponents) id, Bit#(Log2MaxSize) addr);
-        //decoder to request to right component, no check on address
-        inFlight.enq(id);
-        
+    method Action restart;
+        dut.restart();
     endmethod
     
-    method restart;
-        //restart all the components
+    method Action canonicalize;
+        dut.canonicalize();
     endmethod
     
-    method canonicalize;
-        //drain all the pipelines
-    endmethod
-    
-    method halt;
-        //stop all the rules 
+    method Action halt;
+        dut.halt();
     endmethod
 
-    method ActionValue#(Bit#(512)) response (inFlight.notEmpty);
-        inFlight.deq;
-        for(Integer i = 0; i < components; i = i + 1) begin
-            if(inFlight.first matches component?)
-                //call method component+inflight.first
-        end
-        return case(inFlight.first())
+    method ActionValue#(void) halted;
+        dut.halted();
+    endmethod
 
-        endcase
+    method ActionValue#(void) canonicalized;
+        dut.canonicalized();
+    endmethod
+
+    FIFO#(nrComponents) inFlightRequest <- mkBypassFIFO;
+    FIFO#(nrComponents) inFlightResponse <- mkBypassFIFO;
+
+    rule waitResponse;
+        let component = inFlightRequest.first(); inFlightRequest.deq();
+        let data <- dut.components[component].response();
+        inFlightResponse.enq(data);
+    endrule 
+
+    method Action request(Bit#(nrComponents) id, Bit#(Log2MaxSize) addr);
+        inFlightRequest.enq(id);
+        dut.components[id].request(addr);
+    endmethod
+
+    method ActionValue#(Bit#(512)) response;
+        inFlightResponse.deq();
+        return inFlightResponse.first();
     endmethod 
 
 endmodule
