@@ -7,6 +7,8 @@ import Ehr::*;
 import Vector :: * ;
 import CacheUnit :: * ;
 
+import SnapshotTypes::*;
+
 interface GenericCache#(numeric type addrcpuBits, numeric type datacpuBits, numeric type addrmemBits, numeric type datamemBits, numeric type numWords, numeric type numLogLines, numeric type numBanks, numeric type numWays, numeric type idx);
     method Action putFromProc(GenericCacheReq#(addrcpuBits, datacpuBits) e);
     method ActionValue#(Bit#(datacpuBits)) getToProc();
@@ -14,12 +16,27 @@ interface GenericCache#(numeric type addrcpuBits, numeric type datacpuBits, nume
     method Action putFromMem(Bit#(datamemBits) e);
     method Bit#(32) getMissCnt();
 
-    method Action requestLRU(idx_bits addr);
-    method ActionValue#(Bit#(resp_bits)) responseLRU;
-    method Action requestMeta(idx_bits addr);
-    method ActionValue#(Bit#(resp_bits)) responseMeta;
-    method Action requestData(idx_bits addr);
-    method ActionValue#(Bit#(resp_bits)) responseData;
+    // The following methods are implemented as a function of the `mkGenericCache`. 
+    // method Action requestLRU(Bit#(numLogLines) set);
+    // method ActionValue#(ExchangeData) responseLRU;
+    // method Action writeLRUBits(Bit#(numLogLines) addr, Bit#(TSub#(numWays, 1)) bits);
+    
+    // method Action requestMeta(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way);
+    // method ActionValue#(ExchangeData) responseMeta;
+    // method Action writeMeta(Bit#(numLogLines) addr, Bit#(TLog#(numWays)) way, Bit#(TLog#(numWays)) data);
+
+
+    // method Action requestData(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way);
+    // method ActionValue#(ExchangeData) responseData;
+    // method Action writeData(Bit#(numLogLines) addr, Bit#(TLog#(numWays)) way, Bit#(datacpuBits) data);
+
+    method Action halt;
+    method Action canonicalize;
+    method Action restart;
+    method Action request(SnapshotRequestType operation, ExchageAddress addr, ExchangeData data);
+
+    method ActionValue#(void) ready;
+    method ActionValue#(ExchangeData) response;
     
 endinterface
 
@@ -27,7 +44,8 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
             provisos(
                 Mul#(TDiv#(datacpuBits, TDiv#(datacpuBits, 8)), TDiv#(datacpuBits, 8), datacpuBits),
                 Mul#(numWords, datacpuBits, datamemBits),
-                Add#(addrcpuBits, TSub#(0, TLog#(numWords)), addrmemBits)
+                Add#(addrcpuBits, TSub#(0, TLog#(numWords)), addrmemBits),
+                Add#(a__, TSub#(numWays, 1), 512)
                 // Alias#(CacheUnitResp#(Bit#(datacpuBits), CUTag#(addrcpuBits, numWords, numLogLines, numBanks), LineState, numWords), GenericCUResp),
                 // Alias#(GenericParsedAddress, ParsedAddress#(addrcpuBits, numWords, numLogLines, numBanks))
             );
@@ -161,6 +179,47 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         let newMetadata = updateMetadata(curMetadata, way);
         replacementMetadata.portA.request.put(BRAMRequest{write: True, responseOnWrite: False, address: mshr.addr.index, datain: newMetadata});
     endrule
+
+    FIFO#(Bit#(1)) read_lru_token <- mkBypassFIFO();
+
+    function Action readLRURequest(Bit#(numLogLines) set);
+        action
+            replacementMetadata.portA.request.put(BRAMRequest{write: False, responseOnWrite: False, address: set, datain: ?});
+            read_lru_token.enq(?);
+        endaction
+    endfunction: readLRURequest
+
+    function ActionValue#(ExchangeData) readLRUResponse();
+        actionvalue
+            read_lru_token.deq();
+            Bit#(TSub#(numWays, 1)) res <- replacementMetadata.portA.response.get;
+            return zeroExtend(res);
+        endactionvalue
+    endfunction: readLRUResponse
+
+    function Action writeLRUBits(Bit#(numLogLines) addr, Bit#(TSub#(numWays, 1)) bits);
+        action 
+            replacementMetadata.portA.request.put(BRAMRequest{write: True, responseOnWrite: False, address: addr, datain: bits});
+        endaction
+    endfunction: writeLRUBits
+
+    FIFO#(Bit#(TLog#(numWays))) read_tag_token <- mkBypassFIFO();
+
+    function Action readTag(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way);
+        action
+            read_tag_token.enq(way);
+            // TODO: write this function
+        endaction
+    endfunction: readTag
+
+    function ActionValue#(ExchangeData) readTagResponse();
+        actionvalue
+            // TODO: write this function
+        endactionvalue
+    endfunction: readTagResponse
+
+    
+
 
     method Action putFromProc(GenericCacheReq#(addrcpuBits, datacpuBits) e) if (mshr.state == READY);
         ParsedAddress#(addrcpuBits, numWords, numLogLines, numBanks) addr = parseAddr(e.addr);

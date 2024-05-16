@@ -12,6 +12,14 @@ interface CacheUnit#(numeric type dataBits, type cuStatus, numeric type addrBits
     method Action req(CUCacheReq#(addrBits, dataBits) r);
     method ActionValue#(CacheUnitResp#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords)) res();
     method Action update(TaggedLine#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords) newLine, Bit#(numLogLines) lineNum);
+
+    // Althogh I really want to reuse the above methods, they are not designed to back up cache lines in the width of dataBits. Instead, they are for the requests. 
+    // So I have to add a new method to back up the cache lines.
+    method Action peekTagAndStatusReq(Bit#(numLogLines) which_line);
+    method ActionValue#(CUTag#(addrBits, numWords, numLogLines, 1)) peekTagAndStatusResp;
+
+    method Action peekDataReq(Bit#(numLogLines) which_line);
+    method ActionValue#(Vector#(numWords, Bit#(dataBits))) peekDataResp; // the numWords confuses me. Why do I need it? I think it should be 1.
 endinterface
 
 module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLines)) 
