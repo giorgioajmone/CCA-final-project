@@ -42,11 +42,10 @@ module mkMainMemFast(MainMemFast);
     endmethod
 endmodule
 
-
 module mkMainMem(MainMem);
     BRAM_Configure cfg = defaultValue();
     cfg.loadFormat = tagged Hex "memlines.vmh";
-    BRAM1Port#(Bit#(26), MainMemResp) bram <- mkBRAM1Server(cfg);  // spoilers!
+    BRAM1Port#(LineAddr, MainMemResp) bram <- mkBRAM1Server(cfg);
 
     DelayLine#(20, MainMemResp) dl <- mkDL(); // Delay by 20 cycles
 
@@ -60,7 +59,7 @@ module mkMainMem(MainMem);
     method Action put(MainMemReq req);
         bram.portA.request.put(BRAMRequest{
                     write: unpack(req.write),
-                    responseOnWrite: False,
+                    responseOnWrite: True,
                     address: req.addr,
                     datain: req.data});
         // $display("SENT TO MM1 WITH ",fshow(req));

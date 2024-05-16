@@ -43,28 +43,38 @@ Indications: (from Core to Interface)
 */
 
 import FIFO::*;
+import FIFOF::*;
 import SpecialFIFOs::*;
+
+import pipelined::*;
+
+typedef 4 ComponentsNum;
+typedef Bit#(TLog#(ComponentsNum)) NrComponents;
+typedef 64 AddrSize;
 
 interface F2GIfc;
     method Action halt;
     method Action canonicalize;
     method Action restart;
-    method Action request(Bit#(nrComponents) id, Bit#(Log2MaxSize) addr);
+    method Action request(Bit#(NrComponents) id, Bit#(AddrSize) addr);
 
     method ActionValue#(void) ready;
-    method ActionValue#(Bit#(512)) response(Bit#(nrComponents) id);
+    method ActionValue#(Bit#(512)) response(Bit#(NrComponents) id);
 endinterface
 
-typedef `NUM_COMPONENTS ComponentsNum;
-typedef Bit#(TLog#(ComponentsNum)) nrComponents;
-
 (* synthesize *)
-module mkInterface#(F2GIfc);
+module mkInterface(F2GIfc);
 
-    FIFO#(nrComponents) inFlightRequest <- mkBypassFIFO;
-    FIFO#(nrComponents) inFlightResponse <- mkBypassFIFO;
+    FIFOF#(NrComponents) inFlightRequest <- mkBypassFIFO;
+    FIFOF#(NrComponents) inFlightResponse <- mkBypassFIFO;
 
     Core core <- mkPipelined;
+
+    rule waitResponse;
+        let component = inFlightRequest.first(); inFlightRequest.deq();
+        let data <- core.response(component);
+        inFlightResponse.enq(data);
+    endrule 
     
     method Action restart if(!inFlightRequest.notEmpty);
         core.restart();
@@ -80,22 +90,16 @@ module mkInterface#(F2GIfc);
 
     method ActionValue#(void) halted;
         core.halted();
+        return NoAction;
     endmethod
 
     method ActionValue#(void) canonicalized;
         core.canonicalized();
+        return NoAction;
     endmethod
 
-    FIFO#(nrComponents) inFlightRequest <- mkBypassFIFO;
-    FIFO#(nrComponents) inFlightResponse <- mkBypassFIFO;
-
-    rule waitResponse;
-        let component = inFlightRequest.first(); inFlightRequest.deq();
-        let data <- core.response(component);
-        inFlightResponse.enq(data);
-    endrule 
-
-    method Action request(Bit#(1) , Bit#(nrComponents) id, Bit#(Log2MaxSize) addr, Bit#(512) data);
+    
+    method Action request(Bit#(1) operation, Bit#(nrComponents) id, Bit#(AddrSize) addr, Bit#(512) data);
         inFlightRequest.enq(id);
         core.request(addr);
     endmethod
