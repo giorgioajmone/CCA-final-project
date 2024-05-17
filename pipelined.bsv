@@ -9,6 +9,8 @@ import Printf::*;
 import Ehr::*;
 import register_file::*;
 
+import SnapshotTypes::*;
+
 typedef struct { Bit#(4) byte_en; Bit#(32) addr; Bit#(32) data; } Mem deriving (Eq, FShow, Bits);
 
 
@@ -99,9 +101,9 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
     FIFO#(KonataId) squashed <- mkFIFO;
 
     // Pipeline registers
-    FIFO#(F2D) f2d <- mkFIFOF;
-    FIFO#(D2E) d2e <- mkFIFOF;
-    FIFO#(E2W) e2w <- mkFIFOF;
+    FIFOF#(F2D) f2d <- mkFIFOF;
+    FIFOF#(D2E) d2e <- mkFIFOF;
+    FIFOF#(E2W) e2w <- mkFIFOF;
 
     Reg#(Bit#(rfData)) pc <- mkReg(0);
     RFIfc#(rfAddress, rfData) rf <- mkForwardingRF;
@@ -399,16 +401,15 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
         doCanonicalize <= True;
     endmethod
 
-    method Action canonicalized if(doCanonicalize && !f2d.notEmpty && !d2e.notEmpty && !e2w.notEmpty && !excpetion.notEmpty && !misprediction.notEmpty);
+    method Action canonicalized if(doCanonicalize && !f2d.notEmpty && !d2e.notEmpty && !e2w.notEmpty && !exception.notEmpty && !misprediction.notEmpty);
     endmethod    
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(halted || doCanonicalize);
-        
-        let address = addr[rfAddr-1:0];
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(doHalt || doCanonicalize);
+        let address = addr[rfAddress-1:0];
         let writeData = data[rfData-1:0];
         
         if(operation == Read) begin
-            let address = addr[rfAddr-1:0];
+            let address = addr[rfAddress-1:0];
             let readData <- case(address)
                 0: pc[1];
                 default: rf.read(address);
@@ -424,8 +425,8 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
 
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentdId id) if(halted || doCanonicalize);
-        let out <- response.first();
+    method ActionValue#(ExchangeData) response(ComponentdId id) if(doHalt || doCanonicalize);
+        let out = responseFIFO.first();
         responseFIFO.deq();
         return zeroExtend(out);
     endmethod
