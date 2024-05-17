@@ -9,13 +9,13 @@ import FIFOF::*;
 import SpecialFIFOs::*;
 
 
-interface CacheInterface#(numeric type cache_idx, numeric type addr_bits, numeric type resp_bits);
+interface CacheInterface;
     method Action sendReqData(CacheReq req);
     method ActionValue#(Word) getRespData();
     method Action sendReqInstr(CacheReq req);
     method ActionValue#(Word) getRespInstr();
 
-    // INSTRUMENTATION 
+    /* // INSTRUMENTATION 
     method Action halt;
     method Action canonicalize;
     method Action restart;
@@ -24,7 +24,19 @@ interface CacheInterface#(numeric type cache_idx, numeric type addr_bits, numeri
     method ActionValue#(void) canonicalized;
 
     method Action request(Bit#(nrComponents) id, Bit#(Set+way+info) addr);
-    method ActionValue#(Bit#(512)) response(Bit#(nrComponents) id);
+    method ActionValue#(Bit#(512)) response(Bit#(nrComponents) id); */
+
+    // INSTRUMENTATION 
+    method Action halt;
+    method Action canonicalize;
+    method Action restart;
+    method Action halted;
+    method Action restarted;
+    method Action canonicalized;
+
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
+    method ActionValue#(ExchangeData) response(ComponentdId id);
+
 endinterface
 
 typedef enum {
@@ -32,7 +44,7 @@ typedef enum {
     DATA
 } CacheInterfaceRR deriving (Eq, FShow, Bits);
 
-module mkCacheInterface(CacheInterface#(cache_idx, addr_bits, resp_bits));
+module mkCacheInterface(CacheInterface);
     let verbose = False;
     MainMem mainMem <- mkMainMem(); 
     Cache512 cacheL2 <- mkCache512;

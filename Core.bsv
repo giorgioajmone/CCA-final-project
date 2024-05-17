@@ -6,24 +6,26 @@ import FIFO::*;
 import MemTypes::*;
 import CacheInterface::*;
 
-interface CacheInterface#(numeric type cache_idx, numeric type addr_bits, numeric type resp_bits);
+//TO DO: add parameters to core
+
+interface CoreInterface#(numeric type rfAddress, numeric type rfData);
     // INSTRUMENTATION 
     method Action halt;
     method Action canonicalize;
     method Action restart;
-    method ActionValue#(void) halted;
-    method ActionValue#(void) restarted;
-    method ActionValue#(void) canonicalized;
+    method Action halted;
+    method Action restarted;
+    method Action canonicalized;
 
-    method Action request(Bit#(nrComponents) id, Bit#(Set+way+info) addr);
-    method ActionValue#(Bit#(512)) response(Bit#(nrComponents) id);
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
+    method ActionValue#(ExchangeData) response(ComponentdId id);
 endinterface
 
 
-module mkCore(Empty);
+module mkCore(CoreInterface#(rfAddress, rfData));
 
-    CacheInterface(3, 512) cache <- mkCacheInterface();
-    RVIfc#(5, 32) rv_core <- mkpipelined;
+    CacheInterface cache <- mkCacheInterface();
+    RVIfc#(rfAddress, rfData) rv_core <- mkpipelined;
 
     FIFO#(Mem) ireq <- mkFIFO;
     FIFO#(Mem) dreq <- mkFIFO;
@@ -124,26 +126,31 @@ module mkCore(Empty);
         cache.halt();
     endmethod
 
-    method ActionValue#(void) halted;
+    method Action halted;
         core.halted();
         cache.halted();
     endmethod
 
-    method ActionValue#(void) canonicalized;
+    method Action canonicalized;
         core.canonicalized();
         cache.canonicalized();
     endmethod
 
-    method Action request(Bit#(nrComponents) id, Bit#(Set+way+info) addr);
+    method Action restarted;
+        core.restarted();
+        cache.restarted();
+    endmethod
+
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
         case(id)
-            0: core.request(0);
-            1: cache.request(0);
-            2: cache.request(1);
-            3: cache.request(2);
+            0: core.request(operation, 0, addr, data);
+            1: cache.request(operation, 0, addr, data);
+            2: cache.request(operation, 1, addr, data);
+            3: cache.request(operation, 2, addr, data);
         endcase
     endmethod
 
-    method ActionValue#(Bit#(512)) response(Bit#(nrComponents) id);
+    method ActionValue#(ExchangeData) response(ComponentdId id);
         let data <- case(id)
             0: core.response(0);
             1: cache.response(0);

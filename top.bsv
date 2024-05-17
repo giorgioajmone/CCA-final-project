@@ -46,20 +46,19 @@ import FIFO::*;
 import FIFOF::*;
 import SpecialFIFOs::*;
 
-import pipelined::*;
-
-typedef 4 ComponentsNum;
-typedef Bit#(TLog#(ComponentsNum)) NrComponents;
-typedef 64 AddrSize;
+import Core::*;
 
 interface F2GIfc;
+    // INSTRUMENTATION 
     method Action halt;
     method Action canonicalize;
     method Action restart;
-    method Action request(Bit#(NrComponents) id, Bit#(AddrSize) addr);
+    method Action halted;
+    method Action restarted;
+    method Action canonicalized;
 
-    method ActionValue#(void) ready;
-    method ActionValue#(Bit#(512)) response(Bit#(NrComponents) id);
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
+    method ActionValue#(ExchangeData) response;
 endinterface
 
 (* synthesize *)
@@ -68,7 +67,7 @@ module mkInterface(F2GIfc);
     FIFOF#(NrComponents) inFlightRequest <- mkBypassFIFO;
     FIFOF#(NrComponents) inFlightResponse <- mkBypassFIFO;
 
-    Core core <- mkPipelined;
+    Core core <- mkCore;
 
     rule waitResponse;
         let component = inFlightRequest.first(); inFlightRequest.deq();
@@ -88,20 +87,17 @@ module mkInterface(F2GIfc);
         core.halt();
     endmethod
 
-    method ActionValue#(void) halted;
+    method Action halted;
         core.halted();
-        return NoAction;
     endmethod
 
-    method ActionValue#(void) canonicalized;
+    method Action canonicalized;
         core.canonicalized();
-        return NoAction;
     endmethod
 
-    
-    method Action request(Bit#(1) operation, Bit#(nrComponents) id, Bit#(AddrSize) addr, Bit#(512) data);
+    method Action request(Bit#(1) operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
         inFlightRequest.enq(id);
-        core.request(addr);
+        core.request(operation, id, addr, data);
     endmethod
 
     method ActionValue#(Bit#(512)) response;

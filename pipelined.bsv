@@ -11,7 +11,8 @@ import register_file::*;
 
 typedef struct { Bit#(4) byte_en; Bit#(32) addr; Bit#(32) data; } Mem deriving (Eq, FShow, Bits);
 
-interface RVIfc#(numeric type addr_bits, numeric type resp_bits);
+
+interface RVIfc#(numeric type rfAddress, numeric type rfData);
     method ActionValue#(Mem) getIReq();
     method Action getIResp(Mem a);
     method ActionValue#(Mem) getDReq();
@@ -23,12 +24,12 @@ interface RVIfc#(numeric type addr_bits, numeric type resp_bits);
     method Action halt;
     method Action canonicalize;
     method Action restart;
-    method ActionValue#(void) halted;
-    method ActionValue#(void) restarted;
-    method ActionValue#(void) canonicalized;
+    method Action halted;
+    method Action restarted;
+    method Action canonicalized;
 
-    method Action request(idx_bits , addr_bits addr);
-    method ActionValue#(Bit#(resp_bits)) responseRF;
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
+    method ActionValue#(ExchangeData) response(ComponentdId id);
 
 endinterface
 
@@ -78,7 +79,7 @@ typedef struct {
 
 // writeback < execute < fetch < decode
 (* synthesize *)
-module mkpipelined(RVIfc#(addr_bits, resp_bits));
+module mkpipelined(RVIfc#(rfAddress, rfData));
     // Interface with memory and devices
     FIFO#(Mem) toImem <- mkBypassFIFO;
     FIFO#(Mem) fromImem <- mkBypassFIFO;
@@ -102,10 +103,10 @@ module mkpipelined(RVIfc#(addr_bits, resp_bits));
     FIFO#(D2E) d2e <- mkFIFOF;
     FIFO#(E2W) e2w <- mkFIFOF;
 
-    Reg#(Bit#(32)) pc <- mkReg(0);
-    RFIfc#(addr_bits, resp_bits) rf <- mkForwardingRF;
+    Reg#(Bit#(rfData)) pc <- mkReg(0);
+    RFIfc#(rfAddress, rfData) rf <- mkForwardingRF;
     // RFIfc#(5, 1) scoreboard <- mkForwardingRF;
-    Vector#(TExp#(addr_bits), Ehr#(2, Bit#(1))) scoreboard <- replicateM(mkEhr(0));
+    Vector#(TExp#(rfAddress), Ehr#(2, Bit#(1))) scoreboard <- replicateM(mkEhr(0));
     Ehr#(2, Bit#(1)) epoch_fetch <- mkEhr(0);
     Ehr#(2, Bit#(1)) epoch_execute <- mkEhr(0);
     FIFOF#(Bit#(32)) misprediction <- mkBypassFIFOF;
@@ -128,7 +129,7 @@ module mkpipelined(RVIfc#(addr_bits, resp_bits));
         konataTic(lfh);
     endrule
   
-    rule fetch if (!starting && (!halt && !canonicalize));
+    rule fetch if (!starting && ((!halt && !canonicalize) || exception.notEmpty || misprediction.notEmpty));
         Bit#(32) pc_fetched = pc;
         Bit#(32) pc_predicted = pc + 4;
         Bit#(1) epoch = epoch_fetch[0];
@@ -384,7 +385,7 @@ module mkpipelined(RVIfc#(addr_bits, resp_bits));
         halt <- True;
     endmethod
 
-    method ActionValue#(void) halted if(halt);
+    method Action halted if(halt);
     endmethod
 
     method Action restart;
@@ -392,29 +393,44 @@ module mkpipelined(RVIfc#(addr_bits, resp_bits));
         canonicalize <- False;
     endmethod
 
-    method ActionValue#(void) restarted if(!halt && !canonicalize);
+    method Action restarted if(!halt && !canonicalize);
     endmethod    
 
     method Action canonicalize;
         canonicalize <- True;
     endmethod
 
-    method ActionValue#(void) canonicalized if(canonicalize && !f2d.notEmpty && !d2e.notEmpty && !e2w.notEmpty);
+    method Action canonicalized if(canonicalize && !f2d.notEmpty && !d2e.notEmpty && !e2w.notEmpty && !excpetion.notEmpty && !misprediction.notEmpty);
     endmethod    
 
-    FIFO#(Bit#(resp_bits)) response <- mkBypassFIFO;
+    FIFO#(Bit#(rfData)) responseFIFO <- mkBypassFIFO;
 
-    method Action requestRF(Bit#(addr_bits) addr) if(halted || canonicalize);
-        let data <- case(address)
-            0: pc[]
-            default: rf.read(addr);
-        endcase
-        response.enq(data);
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data); if(halted || canonicalize);
+        
+        let address = addr[rfAddr-1:0];
+        let writeData = data[rfData-1:0];
+        
+        if(operation == Read) begin
+            let address = addr[rfAddr-1:0];
+            let readData <- case(address)
+                0: pc[1]
+                default: rf.read(address);
+            endcase
+            responseFIFO.enq(readData);
+        end else begin
+            case(address)
+                0: pc[0] <= writeData;
+                default: rf.write(address, writeData);
+            endcase
+            responseFIFO.enq(writeData);
+        end
+
     endmethod
 
-    method ActionValue#(Bit#(resp_bits)) responseRF if(halted || canonicalize);
-        response.deq();
-        return response.first();
+    method ActionValue#(ExchangeData) response(ComponentdId id) if(halted || canonicalize);
+        let out <- response.first();
+        responseFIFO.deq();
+        return zeroExtend(out);
     endmethod
 
 endmodule
