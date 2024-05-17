@@ -8,6 +8,17 @@ import MemTypes::*;
 interface MainMem;
     method Action put(MainMemReq req);
     method ActionValue#(MainMemResp) get();
+
+    // INSTRUMENTATION 
+    method Action halt;
+    method Action canonicalize;
+    method Action restart;
+    method Action halted;
+    method Action restarted;
+    method Action canonicalized;
+
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
+    method ActionValue#(ExchangeData) response(ComponentdId id);
 endinterface
 
 interface MainMemFast;
@@ -24,11 +35,9 @@ module mkMainMemFast(MainMemFast);
     rule deq;
         let r <- bram.portA.response.get();
         dl.put(r);
-        // $display("REF RESP", fshow(r));
     endrule    
 
     method Action put(CacheReq req);
-        // $display("REF REQ", fshow(req));
         bram.portA.request.put(BRAMRequestBE{
                     writeen: req.word_byte,
                     responseOnWrite: False,
@@ -49,12 +58,20 @@ module mkMainMem(MainMem);
 
     DelayLine#(20, MainMemResp) dl <- mkDL(); // Delay by 20 cycles
 
+    // INSTRUMENTATION
+    Reg#(Bool) doHalt <- mkReg(False);
+    Reg#(Bool) doCanonicalize <- mkReg(False);
+    FIFO#(Bit#(ExchangeData)) responseFIFO <- mkBypassFIFO;
+
     rule deq;
         let r <- bram.portA.response.get();
         dl.put(r);
-        // $display("GOT FROM MM TO DL1 ",fshow(r));
     endrule    
 
+    rule waitResponse if(doHalt || doCanonicalize);
+        let r <- bram.portA.response.get();
+        responseFIFO.enq(r);
+    endrule 
 
     method Action put(MainMemReq req);
         bram.portA.request.put(BRAMRequest{
@@ -62,14 +79,51 @@ module mkMainMem(MainMem);
                     responseOnWrite: True,
                     address: req.addr,
                     datain: req.data});
-        // $display("SENT TO MM1 WITH ",fshow(req));
     endmethod
 
     method ActionValue#(MainMemResp) get();
         let r <- dl.get();
-        //$display("GOT FROM DL1 TO CACHE ",fshow(r));
         return r;
     endmethod
 
+    // INSTRUMENTATION 
+
+    method Action halt;
+        doHalt <= True;
+    endmethod
+
+    method Action halted if(doHalt);
+    endmethod
+
+    method Action restart;
+        doHalt <= False;
+        doCanonicalize <= False;
+    endmethod
+
+    method Action restarted if(!doHalt && !doCanonicalize);
+    endmethod    
+
+    method Action canonicalize;
+        doCanonicalize <= True;
+    endmethod
+
+    method Action canonicalized if(doCanonicalize);
+    endmethod    
+
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(halted || doCanonicalize);
+        //convert the different lengths, TO DO improve and parameterized
+        let address = addr[25:0];
+        bram.portA.request.put(BRAMRequest{
+                    write: unpack(operation),
+                    responseOnWrite: True,
+                    address: address,
+                    datain: data});
+    endmethod
+
+    method ActionValue#(ExchangeData) response(ComponentdId id) if(halted || doCanonicalize);
+        let out <- response.first();
+        responseFIFO.deq();
+        return out;
+    endmethod
 endmodule
 

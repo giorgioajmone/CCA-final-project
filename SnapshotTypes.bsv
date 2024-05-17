@@ -1,6 +1,6 @@
 typedef enum {
-    Read,
-    Write
+    Read = 0,
+    Write = 1
 } SnapshotRequestType deriving (Eq, Bits, FShow);
 
 typedef 4 ComponentsNum;
