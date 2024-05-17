@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := all
 BUILD_DIR=build
-BINARY_NAME=top_pipelined
+BINARY_NAME=top
 BSC_FLAGS=--aggressive-conditions --show-schedule -vdir $(BUILD_DIR) -bdir $(BUILD_DIR) -simdir $(BUILD_DIR) -o 
 
 .PHONY: clean all $(BINARY_NAME)

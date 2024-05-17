@@ -6,8 +6,6 @@ import FIFO::*;
 import MemTypes::*;
 import CacheInterface::*;
 
-//TO DO: add parameters to core
-
 interface CoreInterface#(numeric type rfAddress, numeric type rfData);
     // INSTRUMENTATION 
     method Action halt;
@@ -156,7 +154,7 @@ module mkCore(CoreInterface#(rfAddress, rfData));
             1: cache.response(0);
             2: cache.response(1);
             3: cache.response(2);
-        endcase
+        endcase;
         return data;
     endmethod 
     

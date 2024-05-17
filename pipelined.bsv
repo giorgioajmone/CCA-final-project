@@ -115,9 +115,11 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
     Bool debug = False;    
     Reg#(Bool) starting <- mkReg(True);
 
-    Reg#(Bool) halt <- mkReg(False);
-    Reg#(Bool) canonicalize <- mkReg(False);
-    FIFO#(Bit#(resp_bits)) response <- mkBypassFIFO;
+    // INSTRUMENTATION
+
+    Reg#(Bool) doHalt <- mkReg(False);
+    Reg#(Bool) doCanonicalize <- mkReg(False);
+    FIFO#(Bit#(rfData)) responseFIFO <- mkBypassFIFO;
 
     rule do_tic_logging;
         if (starting) begin
@@ -129,7 +131,7 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
         konataTic(lfh);
     endrule
   
-    rule fetch if (!starting && ((!halt && !canonicalize) || exception.notEmpty || misprediction.notEmpty));
+    rule fetch if (!starting && ((!doHalt && !doCanonicalize) || exception.notEmpty || misprediction.notEmpty));
         Bit#(32) pc_fetched = pc;
         Bit#(32) pc_predicted = pc + 4;
         Bit#(1) epoch = epoch_fetch[0];
@@ -161,7 +163,7 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
         if (debug) $display("[Fetch] ", $format("0x%x", pc_fetched));
     endrule
 
-    rule decode if (!starting && (!halt || canonicalize));
+    rule decode if (!starting && (!doHalt || doCanonicalize));
         // Get inputs (do not dequeue in case of a stall)
         let f = f2d.first();
         let instr = fromImem.first();
@@ -199,7 +201,7 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
         end
     endrule
 
-    rule execute if (!starting && (!halt || canonicalize));
+    rule execute if (!starting && (!doHalt || doCanonicalize));
         // Get inputs
         let d = d2e.first();
         d2e.deq();
@@ -273,7 +275,7 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
         end
     endrule
 
-    rule writeback if (!starting && (!halt || canonicalize));
+    rule writeback if (!starting && (!doHalt || doCanonicalize));
         // get inputs
         let e = e2w.first;
         e2w.deq();
@@ -378,34 +380,29 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
 
     // INSTRUMENTATION
 
-    Reg#(Bool) halt <- mkReg(False);
-    Reg#(Bool) canonicalize <- mkReg(False);
-
     method Action halt;
-        halt <- True;
+        doHalt <= True;
     endmethod
 
-    method Action halted if(halt);
+    method Action halted if(doHalt);
     endmethod
 
     method Action restart;
-        halt <- False;
-        canonicalize <- False;
+        doHalt <= False;
+        doCanonicalize <= False;
     endmethod
 
-    method Action restarted if(!halt && !canonicalize);
+    method Action restarted if(!doHalt && !doCanonicalize);
     endmethod    
 
     method Action canonicalize;
-        canonicalize <- True;
+        doCanonicalize <= True;
     endmethod
 
-    method Action canonicalized if(canonicalize && !f2d.notEmpty && !d2e.notEmpty && !e2w.notEmpty && !excpetion.notEmpty && !misprediction.notEmpty);
+    method Action canonicalized if(doCanonicalize && !f2d.notEmpty && !d2e.notEmpty && !e2w.notEmpty && !excpetion.notEmpty && !misprediction.notEmpty);
     endmethod    
 
-    FIFO#(Bit#(rfData)) responseFIFO <- mkBypassFIFO;
-
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data); if(halted || canonicalize);
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(halted || doCanonicalize);
         
         let address = addr[rfAddr-1:0];
         let writeData = data[rfData-1:0];
@@ -413,9 +410,9 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
         if(operation == Read) begin
             let address = addr[rfAddr-1:0];
             let readData <- case(address)
-                0: pc[1]
+                0: pc[1];
                 default: rf.read(address);
-            endcase
+            endcase;
             responseFIFO.enq(readData);
         end else begin
             case(address)
@@ -427,7 +424,7 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
 
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentdId id) if(halted || canonicalize);
+    method ActionValue#(ExchangeData) response(ComponentdId id) if(halted || doCanonicalize);
         let out <- response.first();
         responseFIFO.deq();
         return zeroExtend(out);
