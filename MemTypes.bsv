@@ -1,6 +1,7 @@
 import Vector :: * ;
 // Types used in L1 interface
-typedef Bit#(26) LineAddr;
+typedef 26 LineAddrLength
+typedef Bit#(LineAddrLength) LineAddr;
 
 typedef Bit#(32) CacheLineAddr;
 
