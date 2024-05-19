@@ -1,3 +1,4 @@
+import Assert::*;
 import BRAM::*;
 import FIFO::*;
 import FIFOF::*;
@@ -16,39 +17,29 @@ interface GenericCache#(numeric type addrcpuBits, numeric type datacpuBits, nume
     method Action putFromMem(Bit#(datamemBits) e);
     method Bit#(32) getMissCnt();
 
-    // The following methods are implemented as a function of the `mkGenericCache`. 
-    // method Action requestLRU(Bit#(numLogLines) set);
-    // method ActionValue#(ExchangeData) responseLRU;
-    // method Action writeLRUBits(Bit#(numLogLines) addr, Bit#(TSub#(numWays, 1)) bits);
-    
-    // method Action requestMeta(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way);
-    // method ActionValue#(ExchangeData) responseMeta;
-    // method Action writeMeta(Bit#(numLogLines) addr, Bit#(TLog#(numWays)) way, Bit#(TLog#(numWays)) data);
-
-
-    // method Action requestData(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way);
-    // method ActionValue#(ExchangeData) responseData;
-    // method Action writeData(Bit#(numLogLines) addr, Bit#(TLog#(numWays)) way, Bit#(datacpuBits) data);
-
     method Action halt;
     method Action canonicalize;
     method Action restart;
-    method Action request(SnapshotRequestType operation, ExchageAddress addr, ExchangeData data);
+    method Action halted;
+    method Action restarted;
+    method Action canonicalized;
 
-    method ActionValue#(void) ready;
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
     method ActionValue#(ExchangeData) response;
     
 endinterface
 
 module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datamemBits, numWords, numLogLines, numBanks, numWays, idx))
-            provisos(
-                Mul#(TDiv#(datacpuBits, TDiv#(datacpuBits, 8)), TDiv#(datacpuBits, 8), datacpuBits),
-                Mul#(numWords, datacpuBits, datamemBits),
-                Add#(addrcpuBits, TSub#(0, TLog#(numWords)), addrmemBits),
-                Add#(a__, TSub#(numWays, 1), 512)
-                // Alias#(CacheUnitResp#(Bit#(datacpuBits), CUTag#(addrcpuBits, numWords, numLogLines, numBanks), LineState, numWords), GenericCUResp),
-                // Alias#(GenericParsedAddress, ParsedAddress#(addrcpuBits, numWords, numLogLines, numBanks))
-            );
+        provisos(
+            Mul#(TDiv#(datacpuBits, TDiv#(datacpuBits, 8)), TDiv#(datacpuBits, 8), datacpuBits),
+            Mul#(numWords, datacpuBits, datamemBits),
+            Add#(addrcpuBits, TSub#(0, TLog#(numWords)), addrmemBits),
+            Add#(a__, TSub#(numWays, 1), 512),
+            Add#(b__, TAdd#(TSub#(TSub#(addrcpuBits, TLog#(numBanks)),TAdd#(TAdd#(TLog#(numWords), numLogLines), 0)), 2), 512),
+            Add#(c__, datamemBits, 512)
+            // Alias#(CacheUnitResp#(Bit#(datacpuBits), CUTag#(addrcpuBits, numWords, numLogLines, numBanks), LineState, numWords), GenericCUResp),
+            // Alias#(GenericParsedAddress, ParsedAddress#(addrcpuBits, numWords, numLogLines, numBanks))
+        );
     Vector#(numWays, CacheUnit#(datacpuBits, LineState, TSub#(addrcpuBits, TLog#(numBanks)), numWords, numLogLines)) cache <- replicateM(mkCacheUnit());
     
     BRAM_Configure cfg = defaultValue;
@@ -64,6 +55,10 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
     Reg#(Bit#(32)) clk <- mkReg(0);
     Reg#(Bit#(32)) missCnt <- mkReg(0);
     let verbose = False;
+
+    Reg#(Bool) is_canonicalizing <- mkReg(False); // when this flag is true, no new requests are accepted.
+
+    Reg#(Bool) is_canonicalized <- mkReg(False); // when this flag is true, there are no in-flight requests.
 
     function Bit#(TSub#(numWays, 1)) updateMetadata(Bit#(TSub#(numWays, 1)) old, Bit#(TLog#(numWays)) wayAccessed);
         // Pseudo LRU metadata update
@@ -104,7 +99,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         clk <= clk + 1;
     endrule
 
-    rule startFill if (mshr.state == START_FILL);
+    rule startFill if (mshr.state == START_FILL && !is_canonicalizing && !is_canonicalized);
         // Dirty writeback is done, now start the fill
         reqToMemFifo.enq(GenericCacheReq{addr: {mshr.addr.tag, mshr.addr.index, mshr.addr.bank}, data: ?, word_byte: 0});
         mshr.state <= WAITING_FOR_MEM;
@@ -112,7 +107,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
             $display("[", valueOf(idx), "] Start fill ", clk);
     endrule
 
-    rule getData if (mshr.state == WAITING_FOR_DATA);
+    rule getData if (mshr.state == WAITING_FOR_DATA && !is_canonicalized);
         Vector#(numWays, CacheUnitResp#(Bit#(datacpuBits), CUTag#(addrcpuBits, numWords, numLogLines, numBanks), LineState, numWords)) resp = ?;
         for (Integer i = 0; i < valueOf(numWays); i = i + 1)
             resp[i] <- cache[i].res();
@@ -205,23 +200,166 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
 
     FIFO#(Bit#(TLog#(numWays))) read_tag_token <- mkBypassFIFO();
 
-    function Action readTag(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way);
+    function Action readTagAndStatus(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way);
         action
             read_tag_token.enq(way);
-            // TODO: write this function
+            cache[way].tagAndStatusReq(False, set, ?);
         endaction
-    endfunction: readTag
+    endfunction: readTagAndStatus
 
-    function ActionValue#(ExchangeData) readTagResponse();
+    function ActionValue#(ExchangeData) readTagAndStatusResponse();
         actionvalue
-            // TODO: write this function
+            let way = read_tag_token.first;
+            read_tag_token.deq();
+            let res <- cache[way].tagAndStatusResp();
+            // now, we have to serialize the response
+            ExchangeData exchangeData = zeroExtend(pack(res));
+            return exchangeData;
         endactionvalue
-    endfunction: readTagResponse
+    endfunction: readTagAndStatusResponse
+
+    function Action writeTagAndStatus(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way, ExchangeData data);
+        action
+            let upper_idx = valueOf(SizeOf#(Tuple2#(CUTag#(addrmemBits, numWords, numLogLines, 1), LineState)));
+            let needed_data = data[upper_idx-1:0];
+            cache[way].tagAndStatusReq(True, set, unpack(needed_data));
+        endaction
+    endfunction: writeTagAndStatus
+
+    FIFO#(Bit#(numLogLines)) read_data_token <- mkBypassFIFO();
+
+    function Action readData(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way);
+        action
+            cache[way].dataReq(False, set, ?);
+        endaction
+    endfunction: readData
+
+    function ActionValue#(ExchangeData) readDataResponse();
+        actionvalue
+            let way = read_data_token.first;
+            read_data_token.deq();
+            let res <- cache[way].dataResp();
+            // now, we have to serialize the response. Maybe you don't need the zeroExtend here.
+            ExchangeData exchangeData = zeroExtend(pack(res));
+            return exchangeData;
+        endactionvalue
+    endfunction: readDataResponse
+
+    function Action writeData(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way, ExchangeData data);
+        action
+            let upper_index = valueOf(SizeOf#(Vector#(numWords, Bit#(datacpuBits))));
+            cache[way].dataReq(True, set, unpack(data[upper_index-1:0]));
+        endaction
+    endfunction: writeData
+
+    FIFOF#(Bit#(2)) request_fifo <- mkBypassFIFOF();
+
+    // there are rules to detect the end of the canonicalization process
+    rule canonicalization_detection if (is_canonicalizing && mshr.state == READY);
+        is_canonicalized <= True;
+        is_canonicalizing <= False;
+    endrule
+
+    method Action halt if (!is_canonicalizing && !is_canonicalized);
+        is_canonicalizing <= True;
+    endmethod
+
+    method Action canonicalize if (!is_canonicalizing && !is_canonicalized);
+        is_canonicalizing <= True;
+    endmethod
+
+    method Action restart if (is_canonicalized && !request_fifo.notEmpty);
+        is_canonicalizing <= False;
+        is_canonicalized <= False;
+    endmethod
+
+    method Action halted if (is_canonicalized || is_canonicalizing);
+    endmethod
+
+    method Action restarted if (!is_canonicalized);
+    endmethod
+
+    method Action canonicalized if (is_canonicalized);
+    endmethod
+
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if (is_canonicalized);
+        // the address is allocated in the following way:
+        // low 2 bits: decide which information to extract:
+        // - 00: LRU metadata
+        // - 01: tag and status
+        // - 10: data
+        // - 11: Return nothing
+        // The next bits are the set index.
+        // The next bits are the way index.
+        
+        // I need to know where is the set index. 
+        let set_index = addr[2+valueOf(numLogLines)-1:2]; // this is the set index
+        let way_index_length = valueOf(TLog#(numWays));
+        let way_index = addr[2+valueOf(numLogLines)+way_index_length-1:2+valueOf(numLogLines)]; // this is the way index
+        if (operation == Read) begin
+            case (addr[1:0]) matches
+                2'b00: begin
+                    readLRURequest(set_index);
+                    request_fifo.enq(0);
+                end
+                2'b01: begin
+                    readTagAndStatus(set_index, way_index);
+                    request_fifo.enq(1);
+                end
+                2'b10: begin
+                    readData(set_index, way_index);
+                    request_fifo.enq(2);
+                end
+                2'b11: begin
+                    dynamicAssert(False, "Invalid operation");
+                end
+            endcase
+        end
+        else begin
+            case (addr[1:0]) matches
+                2'b00: begin
+                    writeLRUBits(set_index, data[way_index_length-2:0]);
+                end
+                2'b01: begin
+                    writeTagAndStatus(set_index, way_index, data);
+                end
+                2'b10: begin
+                    writeData(set_index, way_index, data);
+                end
+                2'b11: begin
+                    dynamicAssert(False, "Invalid operation");
+                end
+            endcase
+        end
+    endmethod
+
+    method ActionValue#(ExchangeData) response;
+        let operation = request_fifo.first;
+        request_fifo.deq();
+        case (operation) matches
+            0: begin
+                let data <- readLRUResponse();
+                return data;
+            end
+            1: begin
+                let data <- readTagAndStatusResponse();
+                return data;
+            end
+            2: begin
+                let data <- readDataResponse();
+                return data;
+            end
+            default: begin
+                dynamicAssert(False, "Invalid operation");
+                return signExtend(1'b1);
+            end
+        endcase
+    endmethod
 
     
 
 
-    method Action putFromProc(GenericCacheReq#(addrcpuBits, datacpuBits) e) if (mshr.state == READY);
+    method Action putFromProc(GenericCacheReq#(addrcpuBits, datacpuBits) e) if (mshr.state == READY && !is_canonicalizing && !is_canonicalized);
         ParsedAddress#(addrcpuBits, numWords, numLogLines, numBanks) addr = parseAddr(e.addr);
         let addrForBank = {addr.tag, addr.index, addr.offset};
         for (Integer i = 0; i < valueOf(numWays); i = i + 1)
@@ -237,7 +375,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         end
     endmethod
         
-    method ActionValue#(Bit#(datacpuBits)) getToProc();
+    method ActionValue#(Bit#(datacpuBits)) getToProc() if (!is_canonicalized);
         let resp = respondFifo.first();
         respondFifo.deq();
         if (verbose)
@@ -245,7 +383,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         return resp;
     endmethod
         
-    method ActionValue#(GenericCacheReq#(addrmemBits, datamemBits)) getToMem();
+    method ActionValue#(GenericCacheReq#(addrmemBits, datamemBits)) getToMem() if (!is_canonicalized);
         let req = reqToMemFifo.first();
         reqToMemFifo.deq();
         missCnt <= missCnt + 1;
@@ -256,7 +394,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         return req;
     endmethod
         
-    method Action putFromMem(Bit#(datamemBits) e);
+    method Action putFromMem(Bit#(datamemBits) e) if (!is_canonicalized);
         Vector#(numWords, Bit#(datacpuBits)) memline = unpack(e);
         let status = Clean;
         let nextState = READY;

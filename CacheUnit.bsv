@@ -13,13 +13,17 @@ interface CacheUnit#(numeric type dataBits, type cuStatus, numeric type addrBits
     method ActionValue#(CacheUnitResp#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords)) res();
     method Action update(TaggedLine#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords) newLine, Bit#(numLogLines) lineNum);
 
+    method Action canonicalize;
+    method Action resume;
+    method ActionValue#(Bool) isCanonicalized;
+
     // Althogh I really want to reuse the above methods, they are not designed to back up cache lines in the width of dataBits. Instead, they are for the requests. 
     // So I have to add a new method to back up the cache lines.
-    method Action peekTagAndStatusReq(Bit#(numLogLines) which_line);
-    method ActionValue#(CUTag#(addrBits, numWords, numLogLines, 1)) peekTagAndStatusResp;
+    method Action tagAndStatusReq(Bool is_write, Bit#(numLogLines) which_line, Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus) tagAndStatus);
+    method ActionValue#(Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus)) tagAndStatusResp;
 
-    method Action peekDataReq(Bit#(numLogLines) which_line);
-    method ActionValue#(Vector#(numWords, Bit#(dataBits))) peekDataResp; // the numWords confuses me. Why do I need it? I think it should be 1.
+    method Action dataReq(Bool is_write, Bit#(numLogLines) which_line, Vector#(numWords, Bit#(dataBits)) data);
+    method ActionValue#(Vector#(numWords, Bit#(dataBits))) dataResp; // the numWords confuses me. Why do I need it? I think it should be 1.
 endinterface
 
 module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLines)) 
@@ -39,7 +43,14 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
     Vector#(numWords, BRAM2PortBE#(Bit#(numLogLines), Bit#(dataBits), TDiv#(dataBits, 8))) dataCache <- replicateM(mkBRAM2ServerBE(cfg));
 
     FIFO#(CUCacheReq#(addrBits, dataBits)) reqFIFO <- mkFIFO;
-    method Action req(CUCacheReq#(addrBits, dataBits) r);
+
+    Reg#(Bool) canonicalized <- mkReg(False);
+
+    // These requests are for aligning request.
+    FIFO#(Bool) tagAndStatusReqFIFO <- mkFIFO;
+    FIFO#(Bool) dataReqFIFO <- mkFIFO;
+
+    method Action req(CUCacheReq#(addrBits, dataBits) r) if (!canonicalized);
         ParsedAddress#(addrBits, numWords, numLogLines, 1) parsedAddress = parseAddr(r.addr);
         let index = parsedAddress.index;
         let offset = parsedAddress.offset;
@@ -97,11 +108,59 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
         return resp;
     endmethod
 
-    method Action update(TaggedLine#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords) newLine, Bit#(numLogLines) lineNum);
+    method Action update(TaggedLine#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords) newLine, Bit#(numLogLines) lineNum) if (!canonicalized);
         // Send write requests to all the BRAMs without checking
         tagCache.portB.request.put(BRAMRequest{write: True, responseOnWrite: False, address: lineNum, datain: newLine.tag});
         statusCache.portB.request.put(BRAMRequest{write: True, responseOnWrite: False, address: lineNum, datain: newLine.status});
         for (Integer i = 0; i < valueOf(numWords); i = i + 1)
             dataCache[i].portB.request.put(BRAMRequestBE{writeen: ~0, responseOnWrite: False, address: lineNum, datain: newLine.words[i]});
+    endmethod
+
+    method Action canonicalize if (!canonicalized);
+        canonicalized <= True;
+    endmethod
+
+    method Action resume if (canonicalized);
+        canonicalized <= False;
+    endmethod
+
+    method ActionValue#(Bool) isCanonicalized;
+        return canonicalized;
+    endmethod
+
+
+    method Action tagAndStatusReq(Bool is_write, Bit#(numLogLines) which_line, Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus) tagAndStatus) if (canonicalized);
+        tagCache.portA.request.put(BRAMRequest{write: is_write, responseOnWrite: False, address: which_line, datain: tpl_1(tagAndStatus)});
+        statusCache.portA.request.put(BRAMRequest{write: is_write, responseOnWrite: False, address: which_line, datain: tpl_2(tagAndStatus)});
+        if(!is_write) begin
+            tagAndStatusReqFIFO.enq(?);
+        end
+    endmethod
+
+    method ActionValue#(Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus)) tagAndStatusResp;
+        let tagResp <- tagCache.portA.response.get;
+        let statusResp <- statusCache.portA.response.get;
+        tagAndStatusReqFIFO.deq;
+        return tuple2(tagResp, statusResp);
+    endmethod
+
+    method Action dataReq(Bool is_write, Bit#(numLogLines) which_line, Vector#(numWords, Bit#(dataBits)) data) if (canonicalized);
+        let write_mask = ?;
+        if (is_write) write_mask = ~0; else write_mask = 0;
+
+        for (Integer i = 0; i < valueOf(numWords); i = i + 1)
+            dataCache[i].portA.request.put(BRAMRequestBE{writeen: write_mask, responseOnWrite: False, address: which_line, datain: data[i]});
+
+        if(!is_write) begin
+            dataReqFIFO.enq(?);
+        end
+    endmethod
+
+    method ActionValue#(Vector#(numWords, Bit#(dataBits))) dataResp;
+        dataReqFIFO.deq;
+        Vector#(numWords, Bit#(dataBits)) resp;
+        for (Integer i = 0; i < valueOf(numWords); i = i + 1)
+            resp[i] <- dataCache[i].portA.response.get;
+        return resp;
     endmethod
 endmodule
