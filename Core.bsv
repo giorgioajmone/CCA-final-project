@@ -5,6 +5,7 @@ import pipelined::*;
 import FIFO::*;
 import MemTypes::*;
 import CacheInterface::*;
+import SnapshotTypes::*;
 
 interface CoreInterface#(numeric type rfAddress, numeric type rfData);
     // INSTRUMENTATION 

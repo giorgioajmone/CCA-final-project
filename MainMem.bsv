@@ -111,7 +111,6 @@ module mkMainMem(MainMem);
     endmethod    
 
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(halted || doCanonicalize);
-        //convert the different lengths, TO DO improve and parameterized
         let address = addr[LineAddrLength-1:0];
         bram.portA.request.put(BRAMRequest{
                     write: unpack(operation),

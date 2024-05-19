@@ -9,36 +9,11 @@ name -> address
 
 0 processor
     0: rf + pc
-1-3
+1-4
     1 -> 0: L1i
     2 -> 1: L1d
     3 -> 2: L2
-
-
-Requests: (from Host to Interface)
-    - halt()
-    - canonicalize()
-    - restart()
-    - request(id, addr)
-
-Indications: (from Interface to Host)
-    - halted() maybe, not necessary
-    - ready()
-    - response(data)
-
-
-The system that is monitored needs to expose a method for each component of interest 
-
-Requests: (from Interface to Core)
-    - halt()
-    - canonicalize()
-    - restart()
-    - request*(addr)
-
-Indications: (from Core to Interface)
-    - halted() maybe, not necessary
-    - ready()
-    - response*(data)
+    4 -> 3: MainMem
 
 */
 
@@ -47,8 +22,27 @@ import FIFOF::*;
 import SpecialFIFOs::*;
 
 import Core::*;
+import SnapshotTypes::*;
 
-interface F2GIfc;
+interface coreIndication;
+    method Action halted;
+    method Action restarted;
+    method Action canonicalized;
+    method Action response(ExchangeData data);
+endinterface
+
+interface coreRequest;
+    method Action halt;
+    method Action canonicalize;
+    method Action restart;
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
+endinterface
+
+interface glue;
+   interface coreRequest request;
+endinterface
+
+/* interface F2GIfc;
     // INSTRUMENTATION 
     method Action halt;
     method Action canonicalize;
@@ -59,50 +53,69 @@ interface F2GIfc;
 
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
     method ActionValue#(ExchangeData) response;
-endinterface
+endinterface */
 
 (* synthesize *)
-module mkInterface(F2GIfc);
+module mkInterface(coreIndication indication) (glue);
 
-    FIFOF#(NrComponents) inFlightRequest <- mkBypassFIFO;
-    FIFOF#(NrComponents) inFlightResponse <- mkBypassFIFO;
+    FIFOF#(NrComponents) inFlight <- mkBypassFIFO;
+
+    Reg#(Bool) doHalt <- mkReg(False);
+    Reg#(Bool) doCanonicalize <- mkReg(False);
+    Reg#(Bool) doRestart <- mkReg(False);
 
     Core core <- mkCore;
 
+    // INDICATION
+
     rule waitResponse;
-        let component = inFlightRequest.first(); inFlightRequest.deq();
+        let component = inFlight.first(); inFlight.deq();
         let data <- core.response(component);
-        inFlightResponse.enq(data);
+        indication.response(data);
     endrule 
     
-    method Action restart if(!inFlightRequest.notEmpty);
-        core.restart();
-    endmethod
-    
-    method Action canonicalize;
-        core.canonicalize();
-    endmethod
-    
-    method Action halt;
-        core.halt();
-    endmethod
-
-    method Action halted;
+    rule halted if(doHalt);
         core.halted();
-    endmethod
+        indication.halted();
+        doHalt <= False;
+    endrule
 
-    method Action canonicalized;
+    rule canonicalized if(doCanonicalize);
         core.canonicalized();
-    endmethod
+        indication.canonicalize();
+        doCanonicalize <= False;
+    endrule
 
-    method Action request(Bit#(1) operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
-        inFlightRequest.enq(id);
-        core.request(operation, id, addr, data);
-    endmethod
+    rule restarted if(doRestart);
+        core.restarted();
+        indication.restarted();
+        doRestart <= False;
+    endrule
 
-    method ActionValue#(Bit#(512)) response;
-        inFlightResponse.deq();
-        return inFlightResponse.first();
-    endmethod 
+    // REQUEST
+
+    interface coreRequest request;
+
+        method Action restart if(!inFlight.notEmpty);
+            core.restart();
+            doRestart <= True;
+        endmethod
+        
+        method Action canonicalize;
+            core.canonicalize();
+            doCanonicalize <= True;
+        endmethod
+        
+        method Action halt;
+            core.halt();
+            doHalt <= True;
+        endmethod
+
+        method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
+            inFlight.enq(id);
+            core.request(operation, id, addr, data);
+        endmethod
+
+    endinterface
 
 endmodule
