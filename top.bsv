@@ -24,39 +24,26 @@ import SpecialFIFOs::*;
 import Core::*;
 import SnapshotTypes::*;
 
-interface coreIndication;
+interface CoreIndication;
     method Action halted;
     method Action restarted;
     method Action canonicalized;
     method Action response(ExchangeData data);
 endinterface
 
-interface coreRequest;
+interface CoreRequest;
     method Action halt;
     method Action canonicalize;
     method Action restart;
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
 endinterface
 
-interface glue;
-   interface coreRequest request;
+interface Glue;
+   interface CoreRequest request;
 endinterface
-
-/* interface F2GIfc;
-    // INSTRUMENTATION 
-    method Action halt;
-    method Action canonicalize;
-    method Action restart;
-    method Action halted;
-    method Action restarted;
-    method Action canonicalized;
-
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
-    method ActionValue#(ExchangeData) response;
-endinterface */
 
 (* synthesize *)
-module mkInterface(coreIndication indication) (glue);
+module mkInterface#(CoreIndication indication)(Glue);
 
     FIFOF#(NrComponents) inFlight <- mkBypassFIFO;
 
@@ -94,7 +81,7 @@ module mkInterface(coreIndication indication) (glue);
 
     // REQUEST
 
-    interface coreRequest request;
+    interface CoreRequest request;
 
         method Action restart if(!inFlight.notEmpty);
             core.restart();

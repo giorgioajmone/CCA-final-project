@@ -5,6 +5,8 @@ import SpecialFIFOs::*;
 import DelayLine::*;
 import MemTypes::*;
 
+import SnapshotTypes::*;
+
 interface MainMem;
     method Action put(MainMemReq req);
     method ActionValue#(MainMemResp) get();
@@ -61,9 +63,9 @@ module mkMainMem(MainMem);
     // INSTRUMENTATION
     Reg#(Bool) doHalt <- mkReg(False);
     Reg#(Bool) doCanonicalize <- mkReg(False);
-    FIFO#(Bit#(ExchangeData)) responseFIFO <- mkBypassFIFO;
+    FIFO#(ExchangeData) responseFIFO <- mkBypassFIFO;
 
-    rule deq;
+    rule deq if(!doHalt && !doCanonicalize);
         let r <- bram.portA.response.get();
         dl.put(r);
     endrule    
@@ -110,19 +112,18 @@ module mkMainMem(MainMem);
     method Action canonicalized if(doCanonicalize);
     endmethod    
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(halted || doCanonicalize);
-        let address = addr[LineAddrLength-1:0];
-        bram.portA.request.put(BRAMRequest{
-                    write: unpack(operation),
-                    responseOnWrite: True,
-                    address: address,
-                    datain: data});
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(doHalt || doCanonicalize);
+        let address = addr[valueOf(LineAddrLength)-1:0];
+        if(operation == Read) begin
+            bram.portA.request.put(BRAMRequest{write: unpack(0), responseOnWrite: True, address: address, datain: data});
+        end else begin
+            bram.portA.request.put(BRAMRequest{write: unpack(1), responseOnWrite: True, address: address, datain: data});
+        end
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentdId id) if(halted || doCanonicalize);
-        let out <- response.first();
+    method ActionValue#(ExchangeData) response(ComponentdId id) if(doHalt || doCanonicalize);
         responseFIFO.deq();
-        return out;
+        return responseFIFO.first();
     endmethod
 endmodule
 

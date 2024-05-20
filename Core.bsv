@@ -1,30 +1,28 @@
 // PIPELINED SINGLE CORE PROCESSOR WITH 2 LEVEL CACHE
 import RVUtil::*;
 import BRAM::*;
-import pipelined::*;
+import Pipelined::*;
 import FIFO::*;
 import MemTypes::*;
 import CacheInterface::*;
 import SnapshotTypes::*;
 
-interface CoreInterface#(numeric type rfAddress, numeric type rfData);
-    // INSTRUMENTATION 
+interface CoreInterface;
     method Action halt;
     method Action canonicalize;
     method Action restart;
     method Action halted;
     method Action restarted;
     method Action canonicalized;
-
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
     method ActionValue#(ExchangeData) response(ComponentdId id);
 endinterface
 
 
-module mkCore(CoreInterface#(rfAddress, rfData));
+module mkCore(CoreInterface);
 
     CacheInterface cache <- mkCacheInterface();
-    RVIfc#(rfAddress, rfData) rv_core <- mkpipelined;
+    RVIfc rv_core <- mkPipelined();
 
     FIFO#(Mem) ireq <- mkFIFO;
     FIFO#(Mem) dreq <- mkFIFO;
@@ -74,30 +72,27 @@ module mkCore(CoreInterface#(rfAddress, rfData));
         if (req.byte_en == 'hf) begin
             if (req.addr == 'hf000_fff4) begin
                 // Write integer to STDERR
-                        $fwrite(stderr, "%0d", req.data);
-                        $fflush(stderr);
+                $fwrite(stderr, "%0d", req.data);
+                $fflush(stderr);
             end
         end
         if (req.addr ==  'hf000_fff0) begin
-                // Writing to STDERR
-                $fwrite(stderr, "%c", req.data[7:0]);
-                $fflush(stderr);
-        end else
+            // Writing to STDERR
+            $fwrite(stderr, "%c", req.data[7:0]);
+            $fflush(stderr);
+        end else begin
             if (req.addr == 'hf000_fff8) begin
                 $display("RAN CYCLES", cycle_count);
-
-            // Exiting Simulation
+                // Exiting Simulation
                 if (req.data == 0) begin
-                        $fdisplay(stderr, "  [0;32mPASS[0m");
+                    $fdisplay(stderr, "  [0;32mPASS[0m");
+                end else begin
+                    $fdisplay(stderr, "  [0;31mFAIL[0m (%0d)", req.data);
                 end
-                else
-                    begin
-                        $fdisplay(stderr, "  [0;31mFAIL[0m (%0d)", req.data);
-                    end
                 $fflush(stderr);
                 $finish;
             end
-
+        end
         mmioreq.enq(req);
     endrule
 
@@ -110,39 +105,46 @@ module mkCore(CoreInterface#(rfAddress, rfData));
 
     // INSTRUMENTATION
 
-    method Action restart if(!inFlightRequest.notEmpty);
-        core.restart();
+    Reg#(Bool) doCanonicalize <- mkReg(False);
+
+    rule canonicalization if(doCanonicalize);
+        rv_core.canonicalized();
+        cache.canonicalize();
+        doCanonicalize <= False;
+    endrule
+
+    method Action restart;
+        rv_core.restart();
         cache.restart();
     endmethod
     
-    method Action canonicalize;
-        core.canonicalize();
-        cache.canonicalize();
+    method Action canonicalize if(!doCanonicalize);
+        rv_core.canonicalize();
+        doCanonicalize <= True;
     endmethod
     
     method Action halt;
-        core.halt();
+        rv_core.halt();
         cache.halt();
     endmethod
 
     method Action halted;
-        core.halted();
+        rv_core.halted();
         cache.halted();
     endmethod
 
     method Action canonicalized;
-        core.canonicalized();
         cache.canonicalized();
     endmethod
 
     method Action restarted;
-        core.restarted();
+        rv_core.restarted();
         cache.restarted();
     endmethod
 
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
         case(id)
-            0: core.request(operation, 0, addr, data);
+            0: rv_core.request(operation, 0, addr, data);
             1: cache.request(operation, 0, addr, data);
             2: cache.request(operation, 1, addr, data);
             3: cache.request(operation, 2, addr, data);
@@ -151,7 +153,7 @@ module mkCore(CoreInterface#(rfAddress, rfData));
 
     method ActionValue#(ExchangeData) response(ComponentdId id);
         let data <- case(id)
-            0: core.response(0);
+            0: rv_core.response(0);
             1: cache.response(0);
             2: cache.response(1);
             3: cache.response(2);

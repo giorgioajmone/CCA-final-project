@@ -8,20 +8,18 @@ import KonataHelper::*;
 import Printf::*;
 import Ehr::*;
 import register_file::*;
-
 import SnapshotTypes::*;
 
 typedef struct { Bit#(4) byte_en; Bit#(32) addr; Bit#(32) data; } Mem deriving (Eq, FShow, Bits);
 
 
-interface RVIfc#(numeric type rfAddress, numeric type rfData);
+interface RVIfc;
     method ActionValue#(Mem) getIReq();
     method Action getIResp(Mem a);
     method ActionValue#(Mem) getDReq();
     method Action getDResp(Mem a);
     method ActionValue#(Mem) getMMIOReq();
     method Action getMMIOResp(Mem a);
-
     // INSTRUMENTATION 
     method Action halt;
     method Action canonicalize;
@@ -29,10 +27,8 @@ interface RVIfc#(numeric type rfAddress, numeric type rfData);
     method Action halted;
     method Action restarted;
     method Action canonicalized;
-
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
     method ActionValue#(ExchangeData) response(ComponentdId id);
-
 endinterface
 
 typedef struct { Bool isUnsigned; Bit#(2) size; Bit#(2) offset; Bool mmio; } MemBusiness deriving (Eq, FShow, Bits);
@@ -81,7 +77,7 @@ typedef struct {
 
 // writeback < execute < fetch < decode
 (* synthesize *)
-module mkpipelined(RVIfc#(rfAddress, rfData));
+module mkPipelined(RVIfc);
     // Interface with memory and devices
     FIFO#(Mem) toImem <- mkBypassFIFO;
     FIFO#(Mem) fromImem <- mkBypassFIFO;
@@ -105,10 +101,10 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
     FIFOF#(D2E) d2e <- mkFIFOF;
     FIFOF#(E2W) e2w <- mkFIFOF;
 
-    Reg#(Bit#(rfData)) pc <- mkReg(0);
-    RFIfc#(rfAddress, rfData) rf <- mkForwardingRF;
+    Reg#(Bit#(32)) pc <- mkReg(0);
+    RFIfc#(5, 32) rf <- mkForwardingRF;
     // RFIfc#(5, 1) scoreboard <- mkForwardingRF;
-    Vector#(TExp#(rfAddress), Ehr#(2, Bit#(1))) scoreboard <- replicateM(mkEhr(0));
+    Vector#(TExp#(5), Ehr#(2, Bit#(1))) scoreboard <- replicateM(mkEhr(0));
     Ehr#(2, Bit#(1)) epoch_fetch <- mkEhr(0);
     Ehr#(2, Bit#(1)) epoch_execute <- mkEhr(0);
     FIFOF#(Bit#(32)) misprediction <- mkBypassFIFOF;
@@ -121,7 +117,8 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
 
     Reg#(Bool) doHalt <- mkReg(False);
     Reg#(Bool) doCanonicalize <- mkReg(False);
-    FIFO#(Bit#(rfData)) responseFIFO <- mkBypassFIFO;
+    Reg#(Bool) isCanonicalized <- mkReg(False);
+    FIFO#(Bit#(32)) responseFIFO <- mkBypassFIFO;
 
     rule do_tic_logging;
         if (starting) begin
@@ -133,7 +130,7 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
         konataTic(lfh);
     endrule
   
-    rule fetch if (!starting && ((!doHalt && !doCanonicalize) || exception.notEmpty || misprediction.notEmpty));
+    rule fetch if (!starting && (!doHalt || (doCanonicalize && (exception.notEmpty || misprediction.notEmpty))) && !isCanonicalized);
         Bit#(32) pc_fetched = pc;
         Bit#(32) pc_predicted = pc + 4;
         Bit#(1) epoch = epoch_fetch[0];
@@ -165,7 +162,7 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
         if (debug) $display("[Fetch] ", $format("0x%x", pc_fetched));
     endrule
 
-    rule decode if (!starting && (!doHalt || doCanonicalize));
+    rule decode if (!starting && (!doHalt || doCanonicalize) && !isCanonicalized);
         // Get inputs (do not dequeue in case of a stall)
         let f = f2d.first();
         let instr = fromImem.first();
@@ -203,7 +200,7 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
         end
     endrule
 
-    rule execute if (!starting && (!doHalt || doCanonicalize));
+    rule execute if (!starting && (!doHalt || doCanonicalize) && !isCanonicalized);
         // Get inputs
         let d = d2e.first();
         d2e.deq();
@@ -277,7 +274,7 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
         end
     endrule
 
-    rule writeback if (!starting && (!doHalt || doCanonicalize));
+    rule writeback if (!starting && (!doHalt || doCanonicalize) && !isCanonicalized);
         // get inputs
         let e = e2w.first;
         e2w.deq();
@@ -337,7 +334,11 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
             end
         end
 	endrule
-		
+
+    rule waitCanonicalization if(doCanonicalize && !isCanonicalized && !f2d.notEmpty && !d2e.notEmpty && !e2w.notEmpty && !exception.notEmpty && !misprediction.notEmpty);
+        isCanonicalized <= True;
+        doCanonicalize <= False;
+    endrule
 
 	// ADMINISTRATION:
 
@@ -382,50 +383,53 @@ module mkpipelined(RVIfc#(rfAddress, rfData));
 
     // INSTRUMENTATION
 
-    method Action halt;
+    method Action halt if(!doHalt);
         doHalt <= True;
     endmethod
 
     method Action halted if(doHalt);
     endmethod
 
-    method Action restart;
-        doHalt <= False;
-        doCanonicalize <= False;
-    endmethod
-
-    method Action restarted if(!doHalt && !doCanonicalize);
-    endmethod    
-
-    method Action canonicalize;
+    method Action canonicalize if(!doCanonicalize && !isCanonicalized);
         doCanonicalize <= True;
+        isCanonicalized <= False;
     endmethod
 
-    method Action canonicalized if(doCanonicalize && !f2d.notEmpty && !d2e.notEmpty && !e2w.notEmpty && !exception.notEmpty && !misprediction.notEmpty);
+    method Action canonicalized if(isCanonicalized);
     endmethod    
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(doHalt || doCanonicalize);
-        let address = addr[rfAddress-1:0];
-        let writeData = data[rfData-1:0];
+    method Action restart if((doHalt && !doCanonicalize) || isCanonicalized);
+        doHalt <= False;
+        isCanonicalized <= False;
+    endmethod
+
+    method Action restarted if(!doHalt && !doCanonicalize && !isCanonicalized);
+    endmethod    
+
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if((doHalt && !doCanonicalize) || isCanonicalized);
+        let address = addr[4:0];
+        let writeData = data[31:0];
         
         if(operation == Read) begin
-            let address = addr[rfAddress-1:0];
-            let readData <- case(address)
-                0: pc[1];
-                default: rf.read(address);
-            endcase;
-            responseFIFO.enq(readData);
+            case(address)
+                5'b00000: responseFIFO.enq(pc);
+                default: begin 
+                    //let x <- rf.read(address);
+                    responseFIFO.enq(pc);
+                end
+            endcase
+            
         end else begin
             case(address)
-                0: pc[0] <= writeData;
-                default: rf.write(address, writeData);
+                5'b00000: pc <= writeData;
+                //default: rf.write(address, writeData);
             endcase
             responseFIFO.enq(writeData);
         end
 
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentdId id) if(doHalt || doCanonicalize);
+    method ActionValue#(ExchangeData) response(ComponentdId id) if((doHalt && !doCanonicalize) || isCanonicalized);
         let out = responseFIFO.first();
         responseFIFO.deq();
         return zeroExtend(out);
