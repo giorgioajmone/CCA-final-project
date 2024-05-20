@@ -1,4 +1,5 @@
 // SINGLE CORE CACHE INTERFACE WITH NO PPP
+import Assert::*;
 import MainMem::*;
 import MemTypes::*;
 import Cache32::*;
@@ -161,38 +162,35 @@ module mkCacheInterface(CacheInterface);
     endmethod
 
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
-        // FIXME: I haven't find a better way to translate the compoment ID to the actual component. 
-        // Now we have fixed the assignment of the component ID to the actual component.
-        // But, we may want to change the assignment in the future.
         case (id)
-            1: cacheI.request(operation, id, addr, data);
-            2: cacheD.request(operation, id, addr, data);
-            3: cacheL2.request(operation, id, addr, data);
-            4: mainMem.request(operation, id, addr, data);
-            default: $display("CacheInterface: Invalid component ID");
+            0: cacheI.request(operation, id, addr, data);
+            1: cacheD.request(operation, id, addr, data);
+            2: cacheL2.request(operation, id, addr, data);
+            3: mainMem.request(operation, id, addr, data);
+            default: dynamicAssert(false, "CacheInterface.request: Invalid component ID");
         endcase
     endmethod
 
     method ActionValue#(ExchangeData) response(ComponentdId id);
         case (id)
-            1: begin
+            0: begin
                 let data <- cacheI.response(id);
                 return data;
             end
-            2: begin
+            1: begin
                 let data <- cacheD.response(id);
                 return data;
             end
-            3: begin 
+            2: begin 
                 let data <- cacheL2.response(id);
                 return data;
             end
-            4: begin 
+            3: begin 
                 let data <- mainMem.response(id);
                 return data;
             end
             default: begin 
-                $display("CacheInterface: Invalid component ID");
+                dynamicAssert(false, "CacheInterface.response: Invalid component ID");
                 return signExtend(1'b1);
             end
         endcase

@@ -144,19 +144,21 @@ module mkCore(CoreInterface);
 
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
         case(id)
-            0: rv_core.request(operation, 0, addr, data);
-            1: cache.request(operation, 0, addr, data);
-            2: cache.request(operation, 1, addr, data);
-            3: cache.request(operation, 2, addr, data);
+            0: rv_core.request(operation, 0, addr, data);   // pipeline
+            1: cache.request(operation, 0, addr, data);     // l1i
+            2: cache.request(operation, 1, addr, data);     // l1d
+            3: cache.request(operation, 2, addr, data);     // l2
+            4: cache.request(operation, 3, addr, data);     // DRAM
         endcase
     endmethod
 
     method ActionValue#(ExchangeData) response(ComponentdId id);
         let data <- case(id)
-            0: rv_core.response(0);
-            1: cache.response(0);
-            2: cache.response(1);
-            3: cache.response(2);
+            0: rv_core.response(0);         // pipeline
+            1: cache.response(0);           // l1i
+            2: cache.response(1);           // l1d
+            3: cache.response(2);           // l2
+            4: cache.response(3);           // DRAM
         endcase;
         return data;
     endmethod 

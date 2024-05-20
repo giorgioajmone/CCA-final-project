@@ -45,13 +45,13 @@ endinterface
 (* synthesize *)
 module mkInterface#(CoreIndication indication)(Glue);
 
-    FIFOF#(NrComponents) inFlight <- mkBypassFIFO;
+    FIFOF#(ComponentdId) inFlight <- mkBypassFIFOF;
 
     Reg#(Bool) doHalt <- mkReg(False);
     Reg#(Bool) doCanonicalize <- mkReg(False);
     Reg#(Bool) doRestart <- mkReg(False);
 
-    Core core <- mkCore;
+    CoreInterface core <- mkCore;
 
     // INDICATION
 
@@ -69,7 +69,7 @@ module mkInterface#(CoreIndication indication)(Glue);
 
     rule canonicalized if(doCanonicalize);
         core.canonicalized();
-        indication.canonicalize();
+        indication.canonicalized();
         doCanonicalize <= False;
     endrule
 
