@@ -25,7 +25,7 @@ interface GenericCache#(numeric type addrcpuBits, numeric type datacpuBits, nume
     method Action canonicalized;
 
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
-    method ActionValue#(ExchangeData) response;
+    method ActionValue#(ExchangeData) response(ComponentdId id);
     
 endinterface
 
@@ -333,7 +333,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         end
     endmethod
 
-    method ActionValue#(ExchangeData) response;
+    method ActionValue#(ExchangeData) response(ComponentdId id);
         let operation = request_fifo.first;
         request_fifo.deq();
         case (operation) matches

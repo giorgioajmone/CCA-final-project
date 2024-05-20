@@ -8,12 +8,25 @@ import Vector::*;
 import CacheUnit::*;
 import GenericCache::*;
 
+import SnapshotTypes::*;
+
+
 // Note that this interface *is* symmetric. 
 interface Cache512;
     method Action putFromProc(MainMemReq e);
     method ActionValue#(MainMemResp) getToProc();
     method ActionValue#(MainMemReq) getToMem();
     method Action putFromMem(MainMemResp e);
+
+    method Action halt;
+    method Action canonicalize;
+    method Action restart;
+    method Action halted;
+    method Action restarted;
+    method Action canonicalized;
+
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
+    method ActionValue#(ExchangeData) response(ComponentdId id);
 endinterface
 
 (* synthesize *)
@@ -38,5 +51,38 @@ module mkCache512(Cache512);
 
     method Action putFromMem(MainMemResp e);
         cache.putFromMem(e);
+    endmethod
+
+    method Action halt;
+        cache.halt;
+    endmethod
+
+    method Action canonicalize;
+        cache.canonicalize;
+    endmethod
+
+    method Action restart;
+        cache.restart;
+    endmethod
+
+    method Action halted;
+        cache.halted;
+    endmethod
+
+    method Action restarted;
+        cache.restarted;
+    endmethod
+
+    method Action canonicalized;
+        cache.canonicalized;
+    endmethod
+
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
+        cache.request(operation, id, addr, data);
+    endmethod
+
+    method ActionValue#(ExchangeData) response(ComponentdId id);
+        let data <- cache.response(id);
+        return data;
     endmethod
 endmodule
