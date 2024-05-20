@@ -90,14 +90,14 @@ module mkMainMem(MainMem);
 
     // INSTRUMENTATION 
 
-    method Action halt;
+    method Action halt if(!doHalt);
         doHalt <= True;
     endmethod
 
     method Action halted if(doHalt);
     endmethod
 
-    method Action restart;
+    method Action restart if(doHalt || doCanonicalize);
         doHalt <= False;
         doCanonicalize <= False;
     endmethod
@@ -105,7 +105,7 @@ module mkMainMem(MainMem);
     method Action restarted if(!doHalt && !doCanonicalize);
     endmethod    
 
-    method Action canonicalize;
+    method Action canonicalize if(!doCanonicalize);
         doCanonicalize <= True;
     endmethod
 
