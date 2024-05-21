@@ -13,11 +13,9 @@ interface MainMem;
 
     // INSTRUMENTATION 
     method Action halt;
-    method Action canonicalize;
     method Action restart;
     method Action halted;
     method Action restarted;
-    method Action canonicalized;
 
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
     method ActionValue#(ExchangeData) response(ComponentdId id);
@@ -63,21 +61,21 @@ module mkMainMem(MainMem);
     DelayLine#(20, MainMemResp) dl <- mkDL(); // Delay by 20 cycles
 
     // INSTRUMENTATION
-    Reg#(Bool) doHalt <- mkReg(False);
-    Reg#(Bool) doCanonicalize <- mkReg(False);
+    Reg#(Bool) is_halted <- mkReg(False);
+
     FIFO#(ExchangeData) responseFIFO <- mkBypassFIFO;
 
-    rule deq if(!doHalt && !doCanonicalize);
+    rule deq if(!is_halted);
         let r <- bram.portA.response.get();
         dl.put(r);
     endrule    
 
-    rule waitResponse if(doHalt || doCanonicalize);
+    rule waitResponse if(!is_halted);
         let r <- bram.portA.response.get();
         responseFIFO.enq(r);
     endrule 
 
-    method Action put(MainMemReq req);
+    method Action put(MainMemReq req) if (!is_halted);
         bram.portA.request.put(BRAMRequest{
                     write: unpack(req.write),
                     responseOnWrite: True,
@@ -85,36 +83,28 @@ module mkMainMem(MainMem);
                     datain: req.data});
     endmethod
 
-    method ActionValue#(MainMemResp) get();
+    method ActionValue#(MainMemResp) get() if (!is_halted);
         let r <- dl.get();
         return r;
     endmethod
 
     // INSTRUMENTATION 
 
-    method Action halt if(!doHalt);
-        doHalt <= True;
+    method Action halt;
+        is_halted <= True;
     endmethod
 
-    method Action halted if(doHalt);
+    method Action halted if(is_halted);
     endmethod
 
-    method Action restart if(doHalt || doCanonicalize);
-        doHalt <= False;
-        doCanonicalize <= False;
+    method Action restart if(is_halted);
+        is_halted <= False;
     endmethod
 
-    method Action restarted if(!doHalt && !doCanonicalize);
-    endmethod    
+    method Action restarted if(!is_halted);
+    endmethod      
 
-    method Action canonicalize if(!doCanonicalize);
-        doCanonicalize <= True;
-    endmethod
-
-    method Action canonicalized if(doCanonicalize);
-    endmethod    
-
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(doHalt || doCanonicalize);
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(is_halted);
         let address = addr[valueOf(LineAddrLength)-1:0];
         if(operation == Read) begin
             bram.portA.request.put(BRAMRequest{write: unpack(0), responseOnWrite: True, address: address, datain: data});
@@ -123,7 +113,7 @@ module mkMainMem(MainMem);
         end
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentdId id) if(doHalt || doCanonicalize);
+    method ActionValue#(ExchangeData) response(ComponentdId id);
         responseFIFO.deq();
         return responseFIFO.first();
     endmethod

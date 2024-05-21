@@ -13,9 +13,11 @@ interface CacheUnit#(numeric type dataBits, type cuStatus, numeric type addrBits
     method ActionValue#(CacheUnitResp#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords)) res();
     method Action update(TaggedLine#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords) newLine, Bit#(numLogLines) lineNum);
 
-    method Action canonicalize;
-    method Action resume;
-    method ActionValue#(Bool) isCanonicalized;
+    method Action halt;
+    method Action restart;
+
+    method Action halted;
+    method Action restarted;
 
     // Althogh I really want to reuse the above methods, they are not designed to back up cache lines in the width of dataBits. Instead, they are for the requests. 
     // So I have to add a new method to back up the cache lines.
@@ -44,13 +46,14 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
 
     FIFO#(CUCacheReq#(addrBits, dataBits)) reqFIFO <- mkFIFO;
 
-    Reg#(Bool) canonicalized <- mkReg(False);
 
     // These requests are for aligning request.
     FIFO#(Bool) tagAndStatusReqFIFO <- mkFIFO;
     FIFO#(Bool) dataReqFIFO <- mkFIFO;
 
-    method Action req(CUCacheReq#(addrBits, dataBits) r) if (!canonicalized);
+    Reg#(Bool) is_halted <- mkReg(False);
+
+    method Action req(CUCacheReq#(addrBits, dataBits) r) if (!is_halted);
         ParsedAddress#(addrBits, numWords, numLogLines, 1) parsedAddress = parseAddr(r.addr);
         let index = parsedAddress.index;
         let offset = parsedAddress.offset;
@@ -63,7 +66,7 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
         reqFIFO.enq(r);
     endmethod
 
-    method ActionValue#(CacheUnitResp#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords)) res();
+    method ActionValue#(CacheUnitResp#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords)) res() if (!is_halted);
         CacheUnitResp#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords) resp = ?;
         let req = reqFIFO.first;
         reqFIFO.deq;
@@ -108,7 +111,7 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
         return resp;
     endmethod
 
-    method Action update(TaggedLine#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords) newLine, Bit#(numLogLines) lineNum) if (!canonicalized);
+    method Action update(TaggedLine#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords) newLine, Bit#(numLogLines) lineNum) if (!is_halted);
         // Send write requests to all the BRAMs without checking
         tagCache.portB.request.put(BRAMRequest{write: True, responseOnWrite: False, address: lineNum, datain: newLine.tag});
         statusCache.portB.request.put(BRAMRequest{write: True, responseOnWrite: False, address: lineNum, datain: newLine.status});
@@ -116,20 +119,21 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
             dataCache[i].portB.request.put(BRAMRequestBE{writeen: ~0, responseOnWrite: False, address: lineNum, datain: newLine.words[i]});
     endmethod
 
-    method Action canonicalize if (!canonicalized);
-        canonicalized <= True;
+    method Action halt;
+        is_halted <= True;
     endmethod
 
-    method Action resume if (canonicalized);
-        canonicalized <= False;
+    method Action restart if (is_halted);
+        is_halted <= False;
     endmethod
 
-    method ActionValue#(Bool) isCanonicalized;
-        return canonicalized;
+    method Action halted if (is_halted);
     endmethod
 
+    method Action restarted if (!is_halted);
+    endmethod
 
-    method Action tagAndStatusReq(Bool is_write, Bit#(numLogLines) which_line, Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus) tagAndStatus) if (canonicalized);
+    method Action tagAndStatusReq(Bool is_write, Bit#(numLogLines) which_line, Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus) tagAndStatus) if (is_halted);
         tagCache.portA.request.put(BRAMRequest{write: is_write, responseOnWrite: False, address: which_line, datain: tpl_1(tagAndStatus)});
         statusCache.portA.request.put(BRAMRequest{write: is_write, responseOnWrite: False, address: which_line, datain: tpl_2(tagAndStatus)});
         if(!is_write) begin
@@ -144,7 +148,7 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
         return tuple2(tagResp, statusResp);
     endmethod
 
-    method Action dataReq(Bool is_write, Bit#(numLogLines) which_line, Vector#(numWords, Bit#(dataBits)) data) if (canonicalized);
+    method Action dataReq(Bool is_write, Bit#(numLogLines) which_line, Vector#(numWords, Bit#(dataBits)) data) if (is_halted);
         let write_mask = ?;
         if (is_write) write_mask = ~0; else write_mask = 0;
 

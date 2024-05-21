@@ -19,11 +19,9 @@ interface CacheInterface;
 
     // INSTRUMENTATION 
     method Action halt;
-    method Action canonicalize;
     method Action restart;
     method Action halted;
     method Action restarted;
-    method Action canonicalized;
 
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
     method ActionValue#(ExchangeData) response(ComponentdId id);
@@ -49,22 +47,21 @@ module mkCacheInterface(CacheInterface);
 
     Reg#(Bool) outstandingMiss <- mkReg(False);
 
-    Reg#(Bool) is_canonicalizing <- mkReg(False);
-    Reg#(Bool) is_canonicalized <- mkReg(False);
+    Reg#(Bool) is_halted <- mkReg(False);
 
-    rule getFromMem;
+    rule getFromMem if (!is_halted);
         let resp <- mainMem.get();
         if (verbose) $display("CacheInterface: Getting from Mem");
         cacheL2.putFromMem(resp);
     endrule
     
-    rule sendToMem;
+    rule sendToMem if (!is_halted);
         let req <- cacheL2.getToMem();
         if (verbose) $display("CacheInterface: Sending to Mem");
         mainMem.put(req);
     endrule
     
-    rule getFromL2;
+    rule getFromL2 if (!is_halted);
         let resp <- cacheL2.getToProc();
         if (verbose) $display("CacheInterface: Getting from L2");
         if (toL2RoundRobin == INSTR) begin
@@ -75,7 +72,7 @@ module mkCacheInterface(CacheInterface);
         outstandingMiss <= False;
     endrule
     
-    rule sendToL2 if (outstandingMiss == False);
+    rule sendToL2 if (outstandingMiss == False && !is_halted);
         let req;
         if (toL2RoundRobin == INSTR && iToL2.notEmpty) begin
             req = iToL2.first;
@@ -108,59 +105,52 @@ module mkCacheInterface(CacheInterface);
         end
     endrule 
 
-    rule toL2Data;
+    rule toL2Data if (!is_halted);
         let req <- cacheD.getToMem();
         dToL2.enq(req);
     endrule
 
-    rule toL2Instr;
+    rule toL2Instr if (!is_halted);
         let req <- cacheI.getToMem();
         iToL2.enq(req);
     endrule
 
-    rule check_canonicalization if (is_canonicalizing && !is_canonicalized && !iToL2.notEmpty && !dToL2.notEmpty);
-        // Check:
-        // 1. All components (L1i, L1d, L2, DRAM) are canonicalized
-        // 2. Two FIFOs (iToL2, dToL2) are empty
-        mainMem.canonicalized;
-        cacheL2.canonicalized;
-        cacheI.canonicalized;
-        cacheD.canonicalized;
-
-        is_canonicalized <= True;
-    endrule
-
     method Action halt;
-        is_canonicalizing <= True;
-        mainMem.halt;
+        is_halted <= True;
+        // I also need to halt all submodules
         cacheL2.halt;
         cacheI.halt;
         cacheD.halt;
+        mainMem.halt;
     endmethod
 
-    method Action canonicalize;
-        is_canonicalized <= True;
-        mainMem.halt;
-        cacheL2.halt;
-        cacheI.halt;
-        cacheD.halt;
-    endmethod
 
     method Action restart;
-        is_canonicalizing <= False;
-        is_canonicalized <= False;
+        is_halted <= False;
+        // I also need to restart all submodules
+        cacheL2.restart;
+        cacheI.restart;
+        cacheD.restart;
+        mainMem.restart;
+
     endmethod
 
-    method Action halted if (is_canonicalizing || is_canonicalized);
+    method Action halted if (is_halted);
+        cacheL2.halted;
+        cacheI.halted;
+        cacheD.halted;
+        mainMem.halted;
     endmethod
 
-    method Action restarted if (!is_canonicalizing && !is_canonicalized);
+    method Action restarted if (!is_halted);
+        cacheL2.restarted;
+        cacheI.restarted;
+        cacheD.restarted;
+        mainMem.restarted;
     endmethod
 
-    method Action canonicalized if (is_canonicalized);
-    endmethod
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if (is_halted);
         case (id)
             0: cacheI.request(operation, id, addr, data);
             1: cacheD.request(operation, id, addr, data);
@@ -195,21 +185,21 @@ module mkCacheInterface(CacheInterface);
         endcase
     endmethod
 
-    method Action sendReqData(CacheReq req) if (!is_canonicalizing && !is_canonicalized);
+    method Action sendReqData(CacheReq req) if (!is_halted);
         cacheD.putFromProc(req);
     endmethod
 
-    method ActionValue#(Word) getRespData() if(!is_canonicalized);
+    method ActionValue#(Word) getRespData() if(!is_halted);
         let resp <- cacheD.getToProc();
         return resp;
     endmethod
 
 
-    method Action sendReqInstr(CacheReq req) if (!is_canonicalizing && !is_canonicalized);
+    method Action sendReqInstr(CacheReq req) if (!is_halted);
         cacheI.putFromProc(req);
     endmethod
 
-    method ActionValue#(Word) getRespInstr() if(!is_canonicalized);
+    method ActionValue#(Word) getRespInstr() if(!is_halted);
         let resp <- cacheI.getToProc();
         return resp;
     endmethod

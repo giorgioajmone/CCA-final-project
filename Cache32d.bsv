@@ -24,11 +24,9 @@ interface Cache32d;
     method Action putFromMem(MainMemResp e);
 
     method Action halt;
-    method Action canonicalize;
     method Action restart;
     method Action halted;
     method Action restarted;
-    method Action canonicalized;
 
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
     method ActionValue#(ExchangeData) response(ComponentdId id);
@@ -62,10 +60,6 @@ module mkCache32d(Cache32d);
         cache.halt;
     endmethod
 
-    method Action canonicalize;
-        cache.canonicalize;
-    endmethod
-
     method Action restart;
         cache.restart;
     endmethod
@@ -76,10 +70,6 @@ module mkCache32d(Cache32d);
 
     method Action restarted;
         cache.restarted;
-    endmethod
-
-    method Action canonicalized;
-        cache.canonicalized;
     endmethod
 
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);

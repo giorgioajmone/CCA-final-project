@@ -18,11 +18,9 @@ interface GenericCache#(numeric type addrcpuBits, numeric type datacpuBits, nume
     method Bit#(32) getMissCnt();
 
     method Action halt;
-    method Action canonicalize;
     method Action restart;
     method Action halted;
     method Action restarted;
-    method Action canonicalized;
 
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
     method ActionValue#(ExchangeData) response(ComponentdId id);
@@ -56,9 +54,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
     Reg#(Bit#(32)) missCnt <- mkReg(0);
     let verbose = False;
 
-    Reg#(Bool) is_canonicalizing <- mkReg(False); // when this flag is true, no new requests are accepted.
-
-    Reg#(Bool) is_canonicalized <- mkReg(False); // when this flag is true, there are no in-flight requests.
+    Reg#(Bool) is_halted <- mkReg(False);
 
     function Bit#(TSub#(numWays, 1)) updateMetadata(Bit#(TSub#(numWays, 1)) old, Bit#(TLog#(numWays)) wayAccessed);
         // Pseudo LRU metadata update
@@ -99,7 +95,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         clk <= clk + 1;
     endrule
 
-    rule startFill if (mshr.state == START_FILL && !is_canonicalizing && !is_canonicalized);
+    rule startFill if (mshr.state == START_FILL && !is_halted);
         // Dirty writeback is done, now start the fill
         reqToMemFifo.enq(GenericCacheReq{addr: {mshr.addr.tag, mshr.addr.index, mshr.addr.bank}, data: ?, word_byte: 0});
         mshr.state <= WAITING_FOR_MEM;
@@ -107,7 +103,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
             $display("[", valueOf(idx), "] Start fill ", clk);
     endrule
 
-    rule getData if (mshr.state == WAITING_FOR_DATA && !is_canonicalized);
+    rule getData if (mshr.state == WAITING_FOR_DATA && !is_halted);
         Vector#(numWays, CacheUnitResp#(Bit#(datacpuBits), CUTag#(addrcpuBits, numWords, numLogLines, numBanks), LineState, numWords)) resp = ?;
         for (Integer i = 0; i < valueOf(numWays); i = i + 1)
             resp[i] <- cache[i].res();
@@ -255,34 +251,35 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
     FIFOF#(Bit#(2)) request_fifo <- mkBypassFIFOF();
 
     // there are rules to detect the end of the canonicalization process
-    rule canonicalization_detection if (is_canonicalizing && mshr.state == READY);
-        is_canonicalized <= True;
-        is_canonicalizing <= False;
-    endrule
 
-    method Action halt if (!is_canonicalizing && !is_canonicalized);
-        is_canonicalizing <= True;
+    method Action halt if (!is_halted);
+        is_halted <= True;
+        // halt all cache units.
+        for (Integer i = 0; i < valueOf(numWays); i = i + 1)
+            cache[i].halt;
     endmethod
 
-    method Action canonicalize if (!is_canonicalizing && !is_canonicalized);
-        is_canonicalizing <= True;
+    method Action restart if (is_halted);
+        is_halted <= False;
+        // restart all cache units.
+        for (Integer i = 0; i < valueOf(numWays); i = i + 1)
+            cache[i].restart;
     endmethod
 
-    method Action restart if (is_canonicalized && !request_fifo.notEmpty);
-        is_canonicalizing <= False;
-        is_canonicalized <= False;
+    method Action halted if (is_halted);
+        // all cache units are halted.
+        for (Integer i = 0; i < valueOf(numWays); i = i + 1)
+            cache[i].halted;
     endmethod
 
-    method Action halted if (is_canonicalized || is_canonicalizing);
+    method Action restarted if (!is_halted);
+        // all cache units are restarted.
+        for (Integer i = 0; i < valueOf(numWays); i = i + 1)
+            cache[i].restarted;
     endmethod
 
-    method Action restarted if (!is_canonicalized);
-    endmethod
 
-    method Action canonicalized if (is_canonicalized);
-    endmethod
-
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if (is_canonicalized);
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if (is_halted);
         // the address is allocated in the following way:
         // low 2 bits: decide which information to extract:
         // - 00: LRU metadata
@@ -357,9 +354,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
     endmethod
 
     
-
-
-    method Action putFromProc(GenericCacheReq#(addrcpuBits, datacpuBits) e) if (mshr.state == READY && !is_canonicalizing && !is_canonicalized);
+    method Action putFromProc(GenericCacheReq#(addrcpuBits, datacpuBits) e) if (mshr.state == READY && !is_halted);
         ParsedAddress#(addrcpuBits, numWords, numLogLines, numBanks) addr = parseAddr(e.addr);
         let addrForBank = {addr.tag, addr.index, addr.offset};
         for (Integer i = 0; i < valueOf(numWays); i = i + 1)
@@ -375,7 +370,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         end
     endmethod
         
-    method ActionValue#(Bit#(datacpuBits)) getToProc() if (!is_canonicalized);
+    method ActionValue#(Bit#(datacpuBits)) getToProc() if (!is_halted);
         let resp = respondFifo.first();
         respondFifo.deq();
         if (verbose)
@@ -383,7 +378,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         return resp;
     endmethod
         
-    method ActionValue#(GenericCacheReq#(addrmemBits, datamemBits)) getToMem() if (!is_canonicalized);
+    method ActionValue#(GenericCacheReq#(addrmemBits, datamemBits)) getToMem() if (!is_halted);
         let req = reqToMemFifo.first();
         reqToMemFifo.deq();
         missCnt <= missCnt + 1;
@@ -394,7 +389,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         return req;
     endmethod
         
-    method Action putFromMem(Bit#(datamemBits) e) if (!is_canonicalized);
+    method Action putFromMem(Bit#(datamemBits) e) if (!is_halted);
         Vector#(numWords, Bit#(datacpuBits)) memline = unpack(e);
         let status = Clean;
         let nextState = READY;
