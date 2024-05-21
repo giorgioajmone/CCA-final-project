@@ -144,6 +144,70 @@ static json extractSpecificCache(uint8_t id, int log2SetCount, int log2WayCount)
 
 }
 
+static void deserializeCache(const json& cache, uint8_t id) {
+    int setCount = cache["set"];
+    int wayCount = cache["way"];
+
+    int log2SetCount = 0;
+    while ((1 << log2SetCount) < setCount) {
+        ++log2SetCount;
+    }
+
+    int log2WayCount = 0;
+    while ((1 << log2WayCount) < wayCount) {
+        ++log2WayCount;
+    }
+
+    auto data = cache["data"];
+    for (int set = 0; set < setCount; ++set) {
+        auto set_results = data[set];
+        uint64_t lru = set_results["lru"];
+
+        // generate the address of updating LRU bits.
+        uint64_t lru_addr = 0x0 | (set << 2);
+        request(WRITE, id, lru_addr, lru);  
+
+        auto lines = set_results["lines"];
+        for (int way = 0; way < wayCount; ++way) {
+            auto way_result = lines[way];
+            bool valid = way_result["valid"];
+            bool dirty = way_result["dirty"];
+            uint64_t tag = way_result["tag"];
+
+            // generate the address of updating tag and metadata.
+            uint64_t tag_addr = 0x1 | (set << 2) | (way << (2 + log2SetCount));
+            uint64_t tag_metadata = (tag << 2);
+            if (valid) {
+                if (dirty) {
+                    tag_metadata |= 0x2;
+                } else {
+                    tag_metadata |= 0x1;
+                }
+            } else {
+                tag_metadata |= 0x0;
+            }
+            request(WRITE, id, tag_addr, tag_metadata);
+
+            auto data = way_result["data"];
+            std::vector<uint64_t> data_values;
+            for (const auto& value : data) {
+                data_values.push_back(value);
+            }
+            uint512_t data = 0;
+
+            for (int i = 7; i >= 0; --i) {
+                data <<= 64;
+                data |= data_values[i];
+            }
+
+            // generate the address of updating data.
+            uint64_t data_addr = 0x2 | (set << 2) | (way << (2 + log2SetCount));
+            request(WRITE, id, data_addr, data);
+            
+        }
+    }
+}
+
 static std::array<json, 3> exportCache() {
     json l1i;
     json l1d;
@@ -229,7 +293,10 @@ static void importSnapshot(std::istream &s){
         snapshot["MainMem"].emplace_back(receivedData);
     }
 
-    // ...
+    // import L1i, L1d, L2 cache
+    deserializeCache(snapshot["L1i"], L1I_ID);
+    deserializeCache(snapshot["L1d"], L1D_ID);
+    deserializeCache(snapshot["L2"], L2_ID);
 
     restart();
 }
