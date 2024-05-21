@@ -86,7 +86,6 @@ module mkPipelined(RVIfc);
     FIFO#(Mem) toMMIO <- mkBypassFIFO;
     FIFO#(Mem) fromMMIO <- mkBypassFIFO;
 
-
     // Code to support Konata visualization
     String dumpFile = "output.log" ;
     let lfh <- mkReg(InvalidFile);
@@ -134,7 +133,6 @@ module mkPipelined(RVIfc);
         Bit#(32) pc_fetched = pc;
         Bit#(32) pc_predicted = pc + 4;
         Bit#(1) epoch = epoch_fetch[0];
-        // check for misprediction
         if (exception.notEmpty) begin
             pc_fetched = exception.first();
             pc_predicted = pc_fetched + 4;
@@ -151,8 +149,6 @@ module mkPipelined(RVIfc);
             epoch = ~epoch_fetch[0];
         end
         pc <= pc_predicted;
-        // You should put the pc that you fetch in pc_fetched
-        // Below is the code to support Konata's visualization
         let iid <- fetch1Konata(lfh, fresh_id, 0);
         labelKonataLeft(lfh, iid, $format("0x%x: ", pc_fetched));
         
@@ -163,19 +159,13 @@ module mkPipelined(RVIfc);
     endrule
 
     rule decode if (!starting && (!doHalt || doCanonicalize) && !isCanonicalized);
-        // Get inputs (do not dequeue in case of a stall)
         let f = f2d.first();
         let instr = fromImem.first();
-        // Decode them
         let dinst = decodeInst(instr.data);
         let current_id = f.k_id;
-        // Konata stuff
         decodeKonata(lfh, current_id);
-        labelKonataLeft(lfh, current_id, $format("DASM(%x)", instr.data));  // inserts the DASM id into the intermediate file
-
-        // Check if epoch is different from the one in the instruction
+        labelKonataLeft(lfh, current_id, $format("DASM(%x)", instr.data));
         if (f.epoch != epoch_fetch[1] || !dinst.legal) begin
-            // If it is, we can pop it and forward the instruction to the next stage
             f2d.deq();
             fromImem.deq();
             d2e.enq(D2E{ dinst: dinst, pc: f.pc, ppc: f.ppc, epoch: f.epoch, rv1: 0, rv2: 0, k_id: f.k_id});
@@ -183,13 +173,7 @@ module mkPipelined(RVIfc);
         else begin
             let rs1_idx = dinst.valid_rs1 ? getInstFields(instr.data).rs1 : 0;
             let rs2_idx = dinst.valid_rs2 ? getInstFields(instr.data).rs2 : 0;
-            // If it is not, check scoreboard
             if (!isStall(scoreboard, rs1_idx, rs2_idx)) begin
-                // If there is no stall, 
-                //we need to read registers 
-                //update scoreboard
-                //pop the instruction from the FIFOs
-                //forward the instruction to the next stage
                 let rs1 <- rf.read(rs1_idx);
                 let rs2 <- rf.read(rs2_idx);
                 if (dinst.valid_rd) scoreboard[getInstFields(instr.data).rd][1] <= 1;
@@ -201,7 +185,6 @@ module mkPipelined(RVIfc);
     endrule
 
     rule execute if (!starting && (!doHalt || doCanonicalize) && !isCanonicalized);
-        // Get inputs
         let d = d2e.first();
         d2e.deq();
         let dInst = d.dinst;
@@ -209,17 +192,13 @@ module mkPipelined(RVIfc);
         let rv1 = d.rv1;
         let rv2 = d.rv2;
         let e_pc = d.pc;
-        // Konata stuff
         if (debug) $display("[Execute] ", fshow(dInst));
             executeKonata(lfh, current_id);
-
         if (d.epoch != epoch_execute[1]) begin
-            // If it is, we need to squash it and forward the instruction to the next stage
             squashed.enq(current_id);
             e2w.enq(E2W{ mem_business: MemBusiness{isUnsigned: unpack(0), size: unpack(0), offset: unpack(0), mmio: False}, data: unpack(0), dinst: dInst, squashed: True, k_id: current_id});
         end
         else begin
-            // This is where you will do the actual execution of the instruction
             let imm = getImmediate(dInst);
             Bool mmio = False;
             let data = execALU32(dInst.inst, rv1, rv2, imm, e_pc);
@@ -228,9 +207,7 @@ module mkPipelined(RVIfc);
             let size = funct3[1:0];
             let addr = rv1 + imm;
             Bit#(2) offset = addr[1:0];
-            // Technical details
             if (isMemoryInst(dInst)) begin
-                // Technical details for load byte/halfword/word
                 let shift_amount = {offset, 3'b0};
                 let byte_en = 0;
                 case (size) matches
@@ -265,8 +242,6 @@ module mkPipelined(RVIfc);
             let nextPc = controlResult.nextPC;
             let mem_business = MemBusiness { isUnsigned : unpack(isUnsigned), size : size, offset : offset, mmio: mmio};
             e2w.enq(E2W{ mem_business: mem_business, data: data, dinst: dInst, squashed: False, k_id: current_id});
-
-            // check for misprediction
             if (nextPc != d.ppc) begin
                 misprediction.enq(nextPc);
                 epoch_execute[1] <= ~epoch_execute[1];
@@ -275,7 +250,6 @@ module mkPipelined(RVIfc);
     endrule
 
     rule writeback if (!starting && (!doHalt || doCanonicalize) && !isCanonicalized);
-        // get inputs
         let e = e2w.first;
         e2w.deq();
         let dInst = e.dinst;
@@ -283,11 +257,9 @@ module mkPipelined(RVIfc);
         let data = e.data;
         let mem_business = e.mem_business;
         let fields = getInstFields(dInst.inst);
-
         writebackKonata(lfh,current_id);
         if (e.squashed) begin
             if (debug) $display("[Writeback] Squashed", fshow(dInst));
-            // only update scoreboard
             if (dInst.valid_rd) begin
                 let rd_idx = fields.rd;
                 if (rd_idx != 0) begin scoreboard[rd_idx][0] <= 0; end
@@ -295,8 +267,6 @@ module mkPipelined(RVIfc);
         end
         else begin
             retired.enq(current_id);
-
-            // technical details
             if (isMemoryInst(dInst)) begin
                 let resp = ?;
                 if (mem_business.mmio) begin 
@@ -318,15 +288,11 @@ module mkPipelined(RVIfc);
             end
 
             if(debug) $display("[Writeback]", fshow(dInst), " ", fields.rd);
-            
-            // should never happen
             if (!dInst.legal) begin
                 if (debug) $display("[Writeback] Illegal Inst, Drop and fault: ", fshow(dInst));
                 exception.enq(unpack(0));
                 epoch_execute[0] <= ~epoch_execute[0];
             end
-
-            // register file
             if (dInst.valid_rd) begin
                 let rd_idx = fields.rd;
                 if (rd_idx != 0) begin scoreboard[rd_idx][0] <= 0; end
@@ -409,7 +375,6 @@ module mkPipelined(RVIfc);
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if((doHalt && !doCanonicalize) || isCanonicalized);
         let address = addr[4:0];
         let writeData = data[31:0];
-        
         if(operation == Read) begin
             case(address)
                 5'b00000: responseFIFO.enq(pc);
@@ -418,7 +383,6 @@ module mkPipelined(RVIfc);
                     responseFIFO.enq(pc);
                 end
             endcase
-            
         end else begin
             case(address)
                 5'b00000: pc <= writeData;
@@ -426,7 +390,6 @@ module mkPipelined(RVIfc);
             endcase
             responseFIFO.enq(writeData);
         end
-
     endmethod
 
     method ActionValue#(ExchangeData) response(ComponentdId id) if((doHalt && !doCanonicalize) || isCanonicalized);

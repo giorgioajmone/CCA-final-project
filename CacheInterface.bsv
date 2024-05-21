@@ -43,8 +43,6 @@ module mkCacheInterface(CacheInterface);
     Cache32 cacheI <- mkCache32;
     Cache32d cacheD <- mkCache32d;
 
-    // You need to add rules and/or state elements.
-
     FIFOF#(MainMemReq) iToL2 <- mkBypassFIFOF;
     FIFOF#(MainMemReq) dToL2 <- mkBypassFIFOF;
     Reg#(CacheInterfaceRR) toL2RoundRobin <- mkReg(INSTR);
