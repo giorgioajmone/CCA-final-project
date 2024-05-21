@@ -49,9 +49,9 @@ public:
 
     virtual void requestMMIO(uint64_t data){
         if((data >> 32) & 0x1)
-            fprintf(stderr, "%d", data & 0xFFFFFFFF);
+            fprintf(stderr, "%d", static_cast<int>(data & 0xFFFFFFFF));
         else
-            fprintf(stderr, "%c", (data & 0xFF)+'0');
+            fprintf(stderr, "%c", static_cast<int>((data & 0xFF)+'0'));
     }
 
     CoreIndication(unsigned int id) : CoreIndicationWrapper(id) {}
@@ -77,6 +77,101 @@ static void request(bool readOrWrite, uint8_t id, uint64_t addr, uint512_t data)
     sem_wait(&sem_response);
 }
 
+static json extractSpecificCache(uint8_t id, int log2SetCount, int log2WayCount) {
+    json cache;
+
+    int setCount = 1 << log2SetCount;
+    int wayCount = 1 << log2WayCount;
+
+    cache["set"] = setCount;
+    cache["way"] = wayCount;    
+
+    for(int set = 0; set < setCount; ++set) {
+        json set_results;
+        // fetch the LRU bits.
+        uint64_t lru_addr = 0x0 | (set << 2);
+        request(READ, id, lru_addr, 0);
+
+        assert(wayCount < 64); // Currently, we only support 64 ways, which is already enough.
+        uint64_t lru = static_cast<uint64_t>(receivedData);
+        set_results["lru"] = lru;
+
+        // Now, fetch each way.
+        for (int way = 0; way < wayCount; ++way) {
+            json way_result;
+            // read the tag and metadata of the way.
+            uint64_t tag_addr = 0x1 | (set << 2) | (way << (2 + log2SetCount));
+            request(READ, id, tag_addr, 0);
+            uint64_t tag_metadata = static_cast<uint64_t>(receivedData);
+
+            uint64_t flag = tag_metadata & 0x3; // low 2-bit.
+            if (flag == 0) {
+                // not valid.
+                way_result["valid"] = false;
+                way_result["dirty"] = false;
+            } else if (flag == 1) {
+                // clean.
+                way_result["valid"] = true;
+                way_result["dirty"] = false;
+            } else if (flag == 2) {
+                // dirty.
+                way_result["valid"] = true;
+                way_result["dirty"] = true;
+            } else {
+                assert(false);
+            }
+
+            uint64_t tag = (tag_metadata >> 2);
+            way_result["tag"] = tag;
+
+            // read the data of the way.
+            uint64_t data_addr = 0x2 | (set << 2) | (way << (2 + log2SetCount));
+            request(READ, id, data_addr, 0);
+            uint512_t data = receivedData;
+            // convert data into 8 64-bit integers.
+            for (int i = 0; i < 8; ++i) {
+                way_result["data"].emplace_back(static_cast<uint64_t>(data));
+                data >>= 64;
+            }
+
+            set_results["lines"].emplace_back(way_result);
+        }
+
+        cache["data"].emplace_back(set_results);
+    }
+
+    return cache;
+
+}
+
+static std::array<json, 3> exportCache() {
+    json l1i;
+    json l1d;
+    json l2;
+
+    // I assume the system is already halted and canonicalized.
+
+    // L1I
+    const int L1I_SET_COUNT_LOG2 = 6;
+    const int L1I_WAY_LOG2 = 1;
+
+    l1i = extractSpecificCache(L1I_ID, L1I_SET_COUNT_LOG2, L1I_WAY_LOG2);
+
+    // L1D
+    const int L1D_SET_COUNT_LOG2 = 6;
+    const int L1D_WAY_LOG2 = 1;
+
+    l1d = extractSpecificCache(L1D_ID, L1D_SET_COUNT_LOG2, L1D_WAY_LOG2);
+
+    // L2
+    const int L2_SET_COUNT_LOG2 = 8;
+    const int L2_WAY_LOG2 = 2;
+
+    l2 = extractSpecificCache(L2_ID, L2_SET_COUNT_LOG2, L2_WAY_LOG2);
+
+    return {l1i, l1d, l2};
+}
+
 static void exportSnapshot(std::ostream &s){
     json snapshot;
 
@@ -98,6 +193,13 @@ static void exportSnapshot(std::ostream &s){
         request(READ, MAIN_MEM_ID, (uint64_t) i, 0);
         snapshot["MainMem"].emplace_back(receivedData);
     }
+
+    //CACHE
+    auto caches = exportCache();
+    snapshot["L1i"] = caches[0];
+    snapshot["L1d"] = caches[1];
+    snapshot["L2"] = caches[2];
+
 
     restart();
 
