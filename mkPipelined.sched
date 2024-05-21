@@ -1,0 +1,1521 @@
+=== Generated schedule for mkPipelined ===
+
+Method schedule
+---------------
+Method: getIReq
+Ready signal: toImem_rv.port1__read[68]
+Conflict-free: getIResp,
+	       getDReq,
+	       getMMIOReq,
+	       halt,
+	       canonicalize,
+	       restart,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced after (restricted): getDResp, getMMIOResp
+Conflicts: getIReq
+ 
+Method: getIResp
+Ready signal: ! fromImem_rv.port0__read[68]
+Conflict-free: getIReq,
+	       getDReq,
+	       getDResp,
+	       getMMIOReq,
+	       getMMIOResp,
+	       restart,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced before (restricted): halt, canonicalize
+Conflicts: getIResp
+ 
+Method: getDReq
+Ready signal: toDmem_rv.port1__read[68]
+Conflict-free: getIReq,
+	       getIResp,
+	       getMMIOReq,
+	       halt,
+	       canonicalize,
+	       restart,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced after (restricted): getDResp, getMMIOResp
+Conflicts: getDReq
+ 
+Method: getDResp
+Ready signal: ! fromDmem_rv.port0__read[68]
+Conflict-free: getIResp,
+	       getMMIOResp,
+	       restart,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced before (restricted): getIReq,
+			       getDReq,
+			       getMMIOReq,
+			       halt,
+			       canonicalize
+Conflicts: getDResp
+ 
+Method: getMMIOReq
+Ready signal: toMMIO_rv.port1__read[68]
+Conflict-free: getIReq,
+	       getIResp,
+	       getDReq,
+	       halt,
+	       canonicalize,
+	       restart,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced after (restricted): getDResp, getMMIOResp
+Conflicts: getMMIOReq
+ 
+Method: getMMIOResp
+Ready signal: ! fromMMIO_rv.port0__read[68]
+Conflict-free: getIResp,
+	       getDResp,
+	       restart,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced before (restricted): getIReq,
+			       getDReq,
+			       getMMIOReq,
+			       halt,
+			       canonicalize
+Conflicts: getMMIOResp
+ 
+Method: halt
+Ready signal: ! doHalt
+Conflict-free: getIReq,
+	       getDReq,
+	       getMMIOReq,
+	       canonicalize,
+	       halted,
+	       canonicalized
+Sequenced after: restarted, request, response
+Sequenced after (restricted): getIResp, getDResp, getMMIOResp
+Conflicts: halt, restart
+ 
+Method: canonicalize
+Ready signal: (! doCanonicalize) && (! isCanonicalized)
+Conflict-free: getIReq, getDReq, getMMIOReq, halt, halted, canonicalized
+Sequenced after: restarted, request, response
+Sequenced after (restricted): getIResp, getDResp, getMMIOResp
+Conflicts: canonicalize, restart
+ 
+Method: restart
+Ready signal: (doHalt && (! doCanonicalize)) || isCanonicalized
+Conflict-free: getIReq,
+	       getIResp,
+	       getDReq,
+	       getDResp,
+	       getMMIOReq,
+	       getMMIOResp,
+	       restarted
+Sequenced after: halted, canonicalized, request, response
+Conflicts: halt, canonicalize, restart
+ 
+Method: halted
+Ready signal: doHalt
+Conflict-free: getIReq,
+	       getIResp,
+	       getDReq,
+	       getDResp,
+	       getMMIOReq,
+	       getMMIOResp,
+	       halt,
+	       canonicalize,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced before: restart
+ 
+Method: restarted
+Ready signal: (! doHalt) && (! doCanonicalize) && (! isCanonicalized)
+Conflict-free: getIReq,
+	       getIResp,
+	       getDReq,
+	       getDResp,
+	       getMMIOReq,
+	       getMMIOResp,
+	       restart,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced before: halt, canonicalize
+ 
+Method: canonicalized
+Ready signal: isCanonicalized
+Conflict-free: getIReq,
+	       getIResp,
+	       getDReq,
+	       getDResp,
+	       getMMIOReq,
+	       getMMIOResp,
+	       halt,
+	       canonicalize,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced before: restart
+ 
+Method: request
+Ready signal: ((doHalt && (! doCanonicalize)) || isCanonicalized) &&
+	      (! responseFIFO_rv.port0__read[32])
+Conflict-free: getIReq,
+	       getIResp,
+	       getDReq,
+	       getDResp,
+	       getMMIOReq,
+	       getMMIOResp,
+	       halted,
+	       restarted,
+	       canonicalized
+Sequenced before: halt, canonicalize, restart
+Sequenced before (restricted): response
+Conflicts: request
+ 
+Method: response
+Ready signal: responseFIFO_rv.port1__read[32] &&
+	      ((doHalt && (! doCanonicalize)) || isCanonicalized)
+Conflict-free: getIReq,
+	       getIResp,
+	       getDReq,
+	       getDResp,
+	       getMMIOReq,
+	       getMMIOResp,
+	       halted,
+	       restarted,
+	       canonicalized
+Sequenced before: halt, canonicalize, restart
+Sequenced after (restricted): request
+Conflicts: response
+ 
+Rule schedule
+-------------
+Rule: scoreboard_0_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_1_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_2_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_3_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_4_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_5_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_6_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_7_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_8_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_9_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_10_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_11_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_12_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_13_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_14_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_15_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_16_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_17_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_18_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_19_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_20_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_21_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_22_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_23_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_24_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_25_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_26_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_27_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_28_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_29_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_30_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: scoreboard_31_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: epoch_fetch_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: epoch_execute_canonicalize
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: do_tic_logging
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: fetch
+Predicate: f2d.i_notFull && (! toImem_rv.port0__read[68]) &&
+	   (! starting) &&
+	   ((! doHalt) ||
+	    (doCanonicalize &&
+	     (exception_rv.port1__read[32] ||
+	      misprediction_rv.port1__read[32]))) &&
+	   (! isCanonicalized)
+Blocking rules: (none)
+ 
+Rule: decode
+Predicate: fromImem_rv.port1__read[68] &&
+	   f2d.i_notEmpty &&
+	   (((! (f2d.first[48] ==
+		 (epoch_fetch_readBeforeLaterWrites_1.read
+		  ? epoch_fetch_port_0.whas
+		    ? epoch_fetch_port_0.wget
+		    : epoch_fetch_register
+		  : (_ :: Bit 1)))) ||
+	     ((fromImem_rv.port1__read[6:0] == 7'b11)
+	      ? (! (fromImem_rv.port1__read[14:12] == 3'b0)) &&
+		(! (fromImem_rv.port1__read[14:12] == 3'b1)) &&
+		(! (fromImem_rv.port1__read[14:12] == 3'b10)) &&
+		(! (fromImem_rv.port1__read[14:12] == 3'b100)) &&
+		(! (fromImem_rv.port1__read[14:12] == 3'b101))
+	      : ((fromImem_rv.port1__read[6:0] == 7'b10011)
+		 ? (! (fromImem_rv.port1__read[14:12] == 3'b0)) &&
+		   (! (fromImem_rv.port1__read[14:12] == 3'b10)) &&
+		   (! (fromImem_rv.port1__read[14:12] == 3'b11)) &&
+		   (! (fromImem_rv.port1__read[14:12] == 3'b100)) &&
+		   (! (fromImem_rv.port1__read[14:12] == 3'b110)) &&
+		   (! (fromImem_rv.port1__read[14:12] == 3'b111)) &&
+		   ((fromImem_rv.port1__read[14:12] == 3'b1)
+		    ? (! (fromImem_rv.port1__read[31:26] == 6'b0)) ||
+		      fromImem_rv.port1__read[25]
+		    : ((! (fromImem_rv.port1__read[14:12] == 3'b101)) ||
+		       ((! (fromImem_rv.port1__read[31:26] == 6'b0)) &&
+			(! (fromImem_rv.port1__read[31:26] == 6'b10000))) ||
+		       fromImem_rv.port1__read[25]))
+		 : ((! (fromImem_rv.port1__read[6:0] == 7'b10111)) &&
+		    ((fromImem_rv.port1__read[6:0] == 7'b100011)
+		     ? (! (fromImem_rv.port1__read[14:12] == 3'b0)) &&
+		       (! (fromImem_rv.port1__read[14:12] == 3'b1)) &&
+		       (! (fromImem_rv.port1__read[14:12] == 3'b10))
+		     : ((fromImem_rv.port1__read[6:0] == 7'b110011)
+			? ((fromImem_rv.port1__read[14:12] == 3'b0) ||
+			   (fromImem_rv.port1__read[14:12] == 3'b101))
+			  ? (! (fromImem_rv.port1__read[31:25] == 7'b0)) &&
+			    (! (fromImem_rv.port1__read[31:25] == 7'b100000))
+			  : (((! (fromImem_rv_port1__read____d289(...)[14:12] ==
+				  3'b1)) &&
+			      (! (fromImem_rv_port1__read____d289(...)[14:12] ==
+				  3'b10)) &&
+			      (! (fromImem_rv.port1__read[14:12] == 3'b11)) &&
+			      (! (fromImem_rv.port1__read[14:12] ==
+				  3'b100)) &&
+			      (! (fromImem_rv.port1__read[14:12] ==
+				  3'b110)) &&
+			      (! (fromImem_rv.port1__read[14:12] ==
+				  3'b111))) ||
+			     (! (fromImem_rv.port1__read[31:25] == 7'b0)))
+			: ((! (fromImem_rv.port1__read[6:0] == 7'b110111)) &&
+			   ((fromImem_rv.port1__read[6:0] == 7'b1100011)
+			    ? (! (fromImem_rv_port1__read____d289(...)[14:12] ==
+				  3'b0)) &&
+			      (! (fromImem_rv_port1__read____d289(...)[14:12] ==
+				  3'b1)) &&
+			      (! (fromImem_rv.port1__read[14:12] ==
+				  3'b100)) &&
+			      (! (fromImem_rv.port1__read[14:12] ==
+				  3'b101)) &&
+			      (! (fromImem_rv.port1__read[14:12] ==
+				  3'b110)) &&
+			      (! (fromImem_rv.port1__read[14:12] == 3'b111))
+			    : ((fromImem_rv.port1__read[6:0] == 7'b1100111)
+			       ? ! (fromImem_rv.port1__read[14:12] == 3'b0)
+			       : ((! (fromImem_rv.port1__read[6:0] ==
+				      7'b1101111)) &&
+				  ((! (fromImem_rv.port1__read[6:0] ==
+				       7'b1110011)) ||
+				   (! (fromImem_rv.port1__read[14:12] ==
+				       3'b0)) ||
+				   (! (fromImem_rv_port1__read____d289(...)[11:7] ==
+				       5'b0)) ||
+				   (((fromImem_rv_port1__read__89_BITS_31_TO_20___d371(...) ==
+				      12'b0) ||
+				     fromImem_rv_port1__read__89_BITS_31_TO_20_71_E_ETC___d373(...) ||
+				     fromImem_rv_port1__read__89_BITS_31_TO_20_71_E_ETC___d374(...))
+				    ? ! (x__h25719(...) == 5'b0)
+				    : ((! fromImem_rv_port1__read__89_BITS_31_TO_20_71_E_ETC___d380(...)) ||
+				       (! fromImem_rv_port1__read__89_BITS_19_TO_15_77_E_ETC___d378(...)))))))))))))))
+	    ? d2e.i_notFull
+	    : ((((! ((((fromImem_rv.port1__read[6:2] == 5'b11000) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b0) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b1000) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b1100) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b11001) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b100))
+		      ? fromImem_rv.port1__read[19:15]
+		      : 5'd0) ==
+		     5'd0)) &&
+		 (! ((((fromImem_rv.port1__read[6:2] == 5'b11000) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b1000) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b1100))
+		      ? fromImem_rv.port1__read[24:20]
+		      : 5'd0) ==
+		     5'd0)))
+		? (PrimArrayDynSelect (PrimBuildArray (scoreboard_0_readBeforeLaterWrites_1.read
+						       ? scoreboard_0_port_0.whas
+							 ? scoreboard_0_port_0.wget
+							 : scoreboard_0_register
+						       : (_ :: Bit 1))
+						      (scoreboard_1_readBeforeLaterWrites_1.read
+						       ? scoreboard_1_port_0.whas
+							 ? scoreboard_1_port_0.wget
+							 : scoreboard_1_register
+						       : (_ :: Bit 1))
+						      (scoreboard_2_readBeforeLaterWrites_1.read
+						       ? scoreboard_2_port_0.whas
+							 ? scoreboard_2_port_0.wget
+							 : scoreboard_2_register
+						       : (_ :: Bit 1))
+						      (scoreboard_3_readBeforeLaterWrites_1.read
+						       ? scoreboard_3_port_0.whas
+							 ? scoreboard_3_port_0.wget
+							 : scoreboard_3_register
+						       : (_ :: Bit 1))
+						      (scoreboard_4_readBeforeLaterWrites_1.read
+						       ? scoreboard_4_port_0.whas
+							 ? scoreboard_4_port_0.wget
+							 : scoreboard_4_register
+						       : (_ :: Bit 1))
+						      (scoreboard_5_readBeforeLaterWrites_1.read
+						       ? scoreboard_5_port_0.whas
+							 ? scoreboard_5_port_0.wget
+							 : scoreboard_5_register
+						       : (_ :: Bit 1))
+						      (scoreboard_6_readBeforeLaterWrites_1.read
+						       ? scoreboard_6_port_0.whas
+							 ? scoreboard_6_port_0.wget
+							 : scoreboard_6_register
+						       : (_ :: Bit 1))
+						      (scoreboard_7_readBeforeLaterWrites_1.read
+						       ? scoreboard_7_port_0.whas
+							 ? scoreboard_7_port_0.wget
+							 : scoreboard_7_register
+						       : (_ :: Bit 1))
+						      (scoreboard_8_readBeforeLaterWrites_1.read
+						       ? scoreboard_8_port_0.whas
+							 ? scoreboard_8_port_0.wget
+							 : scoreboard_8_register
+						       : (_ :: Bit 1))
+						      (scoreboard_9_readBeforeLaterWrites_1.read
+						       ? scoreboard_9_port_0.whas
+							 ? scoreboard_9_port_0.wget
+							 : scoreboard_9_register
+						       : (_ :: Bit 1))
+						      (scoreboard_10_readBeforeLaterWrites_1.read
+						       ? scoreboard_10_port_0.whas
+							 ? scoreboard_10_port_0.wget
+							 : scoreboard_10_register
+						       : (_ :: Bit 1))
+						      (scoreboard_11_readBeforeLaterWrites_1.read
+						       ? scoreboard_11_port_0.whas
+							 ? scoreboard_11_port_0.wget
+							 : scoreboard_11_register
+						       : (_ :: Bit 1))
+						      (scoreboard_12_readBeforeLaterWrites_1.read
+						       ? scoreboard_12_port_0.whas
+							 ? scoreboard_12_port_0.wget
+							 : scoreboard_12_register
+						       : (_ :: Bit 1))
+						      (scoreboard_13_readBeforeLaterWrites_1.read
+						       ? scoreboard_13_port_0.whas
+							 ? scoreboard_13_port_0.wget
+							 : scoreboard_13_register
+						       : (_ :: Bit 1))
+						      (scoreboard_14_readBeforeLaterWrites_1.read
+						       ? scoreboard_14_port_0.whas
+							 ? scoreboard_14_port_0.wget
+							 : scoreboard_14_register
+						       : (_ :: Bit 1))
+						      (scoreboard_15_readBeforeLaterWrites_1.read
+						       ? scoreboard_15_port_0.whas
+							 ? scoreboard_15_port_0.wget
+							 : scoreboard_15_register
+						       : (_ :: Bit 1))
+						      (scoreboard_16_readBeforeLaterWrites_1.read
+						       ? scoreboard_16_port_0.whas
+							 ? scoreboard_16_port_0.wget
+							 : scoreboard_16_register
+						       : (_ :: Bit 1))
+						      (scoreboard_17_readBeforeLaterWrites_1.read
+						       ? scoreboard_17_port_0.whas
+							 ? scoreboard_17_port_0.wget
+							 : scoreboard_17_register
+						       : (_ :: Bit 1))
+						      (scoreboard_18_readBeforeLaterWrites_1.read
+						       ? scoreboard_18_port_0.whas
+							 ? scoreboard_18_port_0.wget
+							 : scoreboard_18_register
+						       : (_ :: Bit 1))
+						      (scoreboard_19_readBeforeLaterWrites_1.read
+						       ? scoreboard_19_port_0.whas
+							 ? scoreboard_19_port_0.wget
+							 : scoreboard_19_register
+						       : (_ :: Bit 1))
+						      (scoreboard_20_readBeforeLaterWrites_1.read
+						       ? scoreboard_20_port_0.whas
+							 ? scoreboard_20_port_0.wget
+							 : scoreboard_20_register
+						       : (_ :: Bit 1))
+						      (scoreboard_21_readBeforeLaterWrites_1.read
+						       ? scoreboard_21_port_0.whas
+							 ? scoreboard_21_port_0.wget
+							 : scoreboard_21_register
+						       : (_ :: Bit 1))
+						      (scoreboard_22_readBeforeLaterWrites_1.read
+						       ? scoreboard_22_port_0.whas
+							 ? scoreboard_22_port_0.wget
+							 : scoreboard_22_register
+						       : (_ :: Bit 1))
+						      (scoreboard_23_readBeforeLaterWrites_1.read
+						       ? scoreboard_23_port_0.whas
+							 ? scoreboard_23_port_0.wget
+							 : scoreboard_23_register
+						       : (_ :: Bit 1))
+						      (scoreboard_24_readBeforeLaterWrites_1.read
+						       ? scoreboard_24_port_0.whas
+							 ? scoreboard_24_port_0.wget
+							 : scoreboard_24_register
+						       : (_ :: Bit 1))
+						      (scoreboard_25_readBeforeLaterWrites_1.read
+						       ? scoreboard_25_port_0.whas
+							 ? scoreboard_25_port_0.wget
+							 : scoreboard_25_register
+						       : (_ :: Bit 1))
+						      (scoreboard_26_readBeforeLaterWrites_1.read
+						       ? scoreboard_26_port_0.whas
+							 ? scoreboard_26_port_0.wget
+							 : scoreboard_26_register
+						       : (_ :: Bit 1))
+						      (scoreboard_27_readBeforeLaterWrites_1.read
+						       ? scoreboard_27_port_0.whas
+							 ? scoreboard_27_port_0.wget
+							 : scoreboard_27_register
+						       : (_ :: Bit 1))
+						      (scoreboard_28_readBeforeLaterWrites_1.read
+						       ? scoreboard_28_port_0.whas
+							 ? scoreboard_28_port_0.wget
+							 : scoreboard_28_register
+						       : (_ :: Bit 1))
+						      (scoreboard_29_readBeforeLaterWrites_1.read
+						       ? scoreboard_29_port_0.whas
+							 ? scoreboard_29_port_0.wget
+							 : scoreboard_29_register
+						       : (_ :: Bit 1))
+						      (scoreboard_30_readBeforeLaterWrites_1.read
+						       ? scoreboard_30_port_0.whas
+							 ? scoreboard_30_port_0.wget
+							 : scoreboard_30_register
+						       : (_ :: Bit 1))
+						      (scoreboard_31_readBeforeLaterWrites_1.read
+						       ? scoreboard_31_port_0.whas
+							 ? scoreboard_31_port_0.wget
+							 : scoreboard_31_register
+						       : (_ :: Bit 1)))
+				      (((fromImem_rv.port1__read[6:2] ==
+					 5'b11000) ||
+					(fromImem_rv.port1__read[6:2] ==
+					 5'b0) ||
+					(fromImem_rv.port1__read[6:2] ==
+					 5'b1000) ||
+					(fromImem_rv.port1__read[6:2] ==
+					 5'b1100) ||
+					(fromImem_rv.port1__read[6:2] ==
+					 5'b11001) ||
+					(fromImem_rv.port1__read[6:2] ==
+					 5'b100))
+				       ? fromImem_rv.port1__read[19:15]
+				       : 5'd0)) ||
+		  (PrimArrayDynSelect (PrimBuildArray (scoreboard_0_readBeforeLaterWrites_1.read
+						       ? scoreboard_0_port_0.whas
+							 ? scoreboard_0_port_0.wget
+							 : scoreboard_0_register
+						       : (_ :: Bit 1))
+						      (scoreboard_1_readBeforeLaterWrites_1.read
+						       ? scoreboard_1_port_0.whas
+							 ? scoreboard_1_port_0.wget
+							 : scoreboard_1_register
+						       : (_ :: Bit 1))
+						      (scoreboard_2_readBeforeLaterWrites_1.read
+						       ? scoreboard_2_port_0.whas
+							 ? scoreboard_2_port_0.wget
+							 : scoreboard_2_register
+						       : (_ :: Bit 1))
+						      (scoreboard_3_readBeforeLaterWrites_1.read
+						       ? scoreboard_3_port_0.whas
+							 ? scoreboard_3_port_0.wget
+							 : scoreboard_3_register
+						       : (_ :: Bit 1))
+						      (scoreboard_4_readBeforeLaterWrites_1.read
+						       ? scoreboard_4_port_0.whas
+							 ? scoreboard_4_port_0.wget
+							 : scoreboard_4_register
+						       : (_ :: Bit 1))
+						      (scoreboard_5_readBeforeLaterWrites_1.read
+						       ? scoreboard_5_port_0.whas
+							 ? scoreboard_5_port_0.wget
+							 : scoreboard_5_register
+						       : (_ :: Bit 1))
+						      (scoreboard_6_readBeforeLaterWrites_1.read
+						       ? scoreboard_6_port_0.whas
+							 ? scoreboard_6_port_0.wget
+							 : scoreboard_6_register
+						       : (_ :: Bit 1))
+						      (scoreboard_7_readBeforeLaterWrites_1.read
+						       ? scoreboard_7_port_0.whas
+							 ? scoreboard_7_port_0.wget
+							 : scoreboard_7_register
+						       : (_ :: Bit 1))
+						      (scoreboard_8_readBeforeLaterWrites_1.read
+						       ? scoreboard_8_port_0.whas
+							 ? scoreboard_8_port_0.wget
+							 : scoreboard_8_register
+						       : (_ :: Bit 1))
+						      (scoreboard_9_readBeforeLaterWrites_1.read
+						       ? scoreboard_9_port_0.whas
+							 ? scoreboard_9_port_0.wget
+							 : scoreboard_9_register
+						       : (_ :: Bit 1))
+						      (scoreboard_10_readBeforeLaterWrites_1.read
+						       ? scoreboard_10_port_0.whas
+							 ? scoreboard_10_port_0.wget
+							 : scoreboard_10_register
+						       : (_ :: Bit 1))
+						      (scoreboard_11_readBeforeLaterWrites_1.read
+						       ? scoreboard_11_port_0.whas
+							 ? scoreboard_11_port_0.wget
+							 : scoreboard_11_register
+						       : (_ :: Bit 1))
+						      (scoreboard_12_readBeforeLaterWrites_1.read
+						       ? scoreboard_12_port_0.whas
+							 ? scoreboard_12_port_0.wget
+							 : scoreboard_12_register
+						       : (_ :: Bit 1))
+						      (scoreboard_13_readBeforeLaterWrites_1.read
+						       ? scoreboard_13_port_0.whas
+							 ? scoreboard_13_port_0.wget
+							 : scoreboard_13_register
+						       : (_ :: Bit 1))
+						      (scoreboard_14_readBeforeLaterWrites_1.read
+						       ? scoreboard_14_port_0.whas
+							 ? scoreboard_14_port_0.wget
+							 : scoreboard_14_register
+						       : (_ :: Bit 1))
+						      (scoreboard_15_readBeforeLaterWrites_1.read
+						       ? scoreboard_15_port_0.whas
+							 ? scoreboard_15_port_0.wget
+							 : scoreboard_15_register
+						       : (_ :: Bit 1))
+						      (scoreboard_16_readBeforeLaterWrites_1.read
+						       ? scoreboard_16_port_0.whas
+							 ? scoreboard_16_port_0.wget
+							 : scoreboard_16_register
+						       : (_ :: Bit 1))
+						      (scoreboard_17_readBeforeLaterWrites_1.read
+						       ? scoreboard_17_port_0.whas
+							 ? scoreboard_17_port_0.wget
+							 : scoreboard_17_register
+						       : (_ :: Bit 1))
+						      (scoreboard_18_readBeforeLaterWrites_1.read
+						       ? scoreboard_18_port_0.whas
+							 ? scoreboard_18_port_0.wget
+							 : scoreboard_18_register
+						       : (_ :: Bit 1))
+						      (scoreboard_19_readBeforeLaterWrites_1.read
+						       ? scoreboard_19_port_0.whas
+							 ? scoreboard_19_port_0.wget
+							 : scoreboard_19_register
+						       : (_ :: Bit 1))
+						      (scoreboard_20_readBeforeLaterWrites_1.read
+						       ? scoreboard_20_port_0.whas
+							 ? scoreboard_20_port_0.wget
+							 : scoreboard_20_register
+						       : (_ :: Bit 1))
+						      (scoreboard_21_readBeforeLaterWrites_1.read
+						       ? scoreboard_21_port_0.whas
+							 ? scoreboard_21_port_0.wget
+							 : scoreboard_21_register
+						       : (_ :: Bit 1))
+						      (scoreboard_22_readBeforeLaterWrites_1.read
+						       ? scoreboard_22_port_0.whas
+							 ? scoreboard_22_port_0.wget
+							 : scoreboard_22_register
+						       : (_ :: Bit 1))
+						      (scoreboard_23_readBeforeLaterWrites_1.read
+						       ? scoreboard_23_port_0.whas
+							 ? scoreboard_23_port_0.wget
+							 : scoreboard_23_register
+						       : (_ :: Bit 1))
+						      (scoreboard_24_readBeforeLaterWrites_1.read
+						       ? scoreboard_24_port_0.whas
+							 ? scoreboard_24_port_0.wget
+							 : scoreboard_24_register
+						       : (_ :: Bit 1))
+						      (scoreboard_25_readBeforeLaterWrites_1.read
+						       ? scoreboard_25_port_0.whas
+							 ? scoreboard_25_port_0.wget
+							 : scoreboard_25_register
+						       : (_ :: Bit 1))
+						      (scoreboard_26_readBeforeLaterWrites_1.read
+						       ? scoreboard_26_port_0.whas
+							 ? scoreboard_26_port_0.wget
+							 : scoreboard_26_register
+						       : (_ :: Bit 1))
+						      (scoreboard_27_readBeforeLaterWrites_1.read
+						       ? scoreboard_27_port_0.whas
+							 ? scoreboard_27_port_0.wget
+							 : scoreboard_27_register
+						       : (_ :: Bit 1))
+						      (scoreboard_28_readBeforeLaterWrites_1.read
+						       ? scoreboard_28_port_0.whas
+							 ? scoreboard_28_port_0.wget
+							 : scoreboard_28_register
+						       : (_ :: Bit 1))
+						      (scoreboard_29_readBeforeLaterWrites_1.read
+						       ? scoreboard_29_port_0.whas
+							 ? scoreboard_29_port_0.wget
+							 : scoreboard_29_register
+						       : (_ :: Bit 1))
+						      (scoreboard_30_readBeforeLaterWrites_1.read
+						       ? scoreboard_30_port_0.whas
+							 ? scoreboard_30_port_0.wget
+							 : scoreboard_30_register
+						       : (_ :: Bit 1))
+						      (scoreboard_31_readBeforeLaterWrites_1.read
+						       ? scoreboard_31_port_0.whas
+							 ? scoreboard_31_port_0.wget
+							 : scoreboard_31_register
+						       : (_ :: Bit 1)))
+				      (((fromImem_rv.port1__read[6:2] ==
+					 5'b11000) ||
+					(fromImem_rv.port1__read[6:2] ==
+					 5'b1000) ||
+					(fromImem_rv.port1__read[6:2] ==
+					 5'b1100))
+				       ? fromImem_rv.port1__read[24:20]
+				       : 5'd0))
+		: (((((fromImem_rv.port1__read[6:2] == 5'b11000) ||
+		      (fromImem_rv.port1__read[6:2] == 5'b0) ||
+		      (fromImem_rv.port1__read[6:2] == 5'b1000) ||
+		      (fromImem_rv.port1__read[6:2] == 5'b1100) ||
+		      (fromImem_rv.port1__read[6:2] == 5'b11001) ||
+		      (fromImem_rv.port1__read[6:2] == 5'b100))
+		     ? fromImem_rv.port1__read[19:15]
+		     : 5'd0) ==
+		    5'd0)
+		   ? (! ((((fromImem_rv.port1__read[6:2] == 5'b11000) ||
+			   (fromImem_rv.port1__read[6:2] == 5'b1000) ||
+			   (fromImem_rv.port1__read[6:2] == 5'b1100))
+			  ? fromImem_rv.port1__read[24:20]
+			  : 5'd0) ==
+			 5'd0)) &&
+		     (PrimArrayDynSelect (PrimBuildArray (scoreboard_0_readBeforeLaterWrites_1.read
+							  ? scoreboard_0_port_0.whas
+							    ? scoreboard_0_port_0.wget
+							    : scoreboard_0_register
+							  : (_ :: Bit 1))
+							 (scoreboard_1_readBeforeLaterWrites_1.read
+							  ? scoreboard_1_port_0.whas
+							    ? scoreboard_1_port_0.wget
+							    : scoreboard_1_register
+							  : (_ :: Bit 1))
+							 (scoreboard_2_readBeforeLaterWrites_1.read
+							  ? scoreboard_2_port_0.whas
+							    ? scoreboard_2_port_0.wget
+							    : scoreboard_2_register
+							  : (_ :: Bit 1))
+							 (scoreboard_3_readBeforeLaterWrites_1.read
+							  ? scoreboard_3_port_0.whas
+							    ? scoreboard_3_port_0.wget
+							    : scoreboard_3_register
+							  : (_ :: Bit 1))
+							 (scoreboard_4_readBeforeLaterWrites_1.read
+							  ? scoreboard_4_port_0.whas
+							    ? scoreboard_4_port_0.wget
+							    : scoreboard_4_register
+							  : (_ :: Bit 1))
+							 (scoreboard_5_readBeforeLaterWrites_1.read
+							  ? scoreboard_5_port_0.whas
+							    ? scoreboard_5_port_0.wget
+							    : scoreboard_5_register
+							  : (_ :: Bit 1))
+							 (scoreboard_6_readBeforeLaterWrites_1.read
+							  ? scoreboard_6_port_0.whas
+							    ? scoreboard_6_port_0.wget
+							    : scoreboard_6_register
+							  : (_ :: Bit 1))
+							 (scoreboard_7_readBeforeLaterWrites_1.read
+							  ? scoreboard_7_port_0.whas
+							    ? scoreboard_7_port_0.wget
+							    : scoreboard_7_register
+							  : (_ :: Bit 1))
+							 (scoreboard_8_readBeforeLaterWrites_1.read
+							  ? scoreboard_8_port_0.whas
+							    ? scoreboard_8_port_0.wget
+							    : scoreboard_8_register
+							  : (_ :: Bit 1))
+							 (scoreboard_9_readBeforeLaterWrites_1.read
+							  ? scoreboard_9_port_0.whas
+							    ? scoreboard_9_port_0.wget
+							    : scoreboard_9_register
+							  : (_ :: Bit 1))
+							 (scoreboard_10_readBeforeLaterWrites_1.read
+							  ? scoreboard_10_port_0.whas
+							    ? scoreboard_10_port_0.wget
+							    : scoreboard_10_register
+							  : (_ :: Bit 1))
+							 (scoreboard_11_readBeforeLaterWrites_1.read
+							  ? scoreboard_11_port_0.whas
+							    ? scoreboard_11_port_0.wget
+							    : scoreboard_11_register
+							  : (_ :: Bit 1))
+							 (scoreboard_12_readBeforeLaterWrites_1.read
+							  ? scoreboard_12_port_0.whas
+							    ? scoreboard_12_port_0.wget
+							    : scoreboard_12_register
+							  : (_ :: Bit 1))
+							 (scoreboard_13_readBeforeLaterWrites_1.read
+							  ? scoreboard_13_port_0.whas
+							    ? scoreboard_13_port_0.wget
+							    : scoreboard_13_register
+							  : (_ :: Bit 1))
+							 (scoreboard_14_readBeforeLaterWrites_1.read
+							  ? scoreboard_14_port_0.whas
+							    ? scoreboard_14_port_0.wget
+							    : scoreboard_14_register
+							  : (_ :: Bit 1))
+							 (scoreboard_15_readBeforeLaterWrites_1.read
+							  ? scoreboard_15_port_0.whas
+							    ? scoreboard_15_port_0.wget
+							    : scoreboard_15_register
+							  : (_ :: Bit 1))
+							 (scoreboard_16_readBeforeLaterWrites_1.read
+							  ? scoreboard_16_port_0.whas
+							    ? scoreboard_16_port_0.wget
+							    : scoreboard_16_register
+							  : (_ :: Bit 1))
+							 (scoreboard_17_readBeforeLaterWrites_1.read
+							  ? scoreboard_17_port_0.whas
+							    ? scoreboard_17_port_0.wget
+							    : scoreboard_17_register
+							  : (_ :: Bit 1))
+							 (scoreboard_18_readBeforeLaterWrites_1.read
+							  ? scoreboard_18_port_0.whas
+							    ? scoreboard_18_port_0.wget
+							    : scoreboard_18_register
+							  : (_ :: Bit 1))
+							 (scoreboard_19_readBeforeLaterWrites_1.read
+							  ? scoreboard_19_port_0.whas
+							    ? scoreboard_19_port_0.wget
+							    : scoreboard_19_register
+							  : (_ :: Bit 1))
+							 (scoreboard_20_readBeforeLaterWrites_1.read
+							  ? scoreboard_20_port_0.whas
+							    ? scoreboard_20_port_0.wget
+							    : scoreboard_20_register
+							  : (_ :: Bit 1))
+							 (scoreboard_21_readBeforeLaterWrites_1.read
+							  ? scoreboard_21_port_0.whas
+							    ? scoreboard_21_port_0.wget
+							    : scoreboard_21_register
+							  : (_ :: Bit 1))
+							 (scoreboard_22_readBeforeLaterWrites_1.read
+							  ? scoreboard_22_port_0.whas
+							    ? scoreboard_22_port_0.wget
+							    : scoreboard_22_register
+							  : (_ :: Bit 1))
+							 (scoreboard_23_readBeforeLaterWrites_1.read
+							  ? scoreboard_23_port_0.whas
+							    ? scoreboard_23_port_0.wget
+							    : scoreboard_23_register
+							  : (_ :: Bit 1))
+							 (scoreboard_24_readBeforeLaterWrites_1.read
+							  ? scoreboard_24_port_0.whas
+							    ? scoreboard_24_port_0.wget
+							    : scoreboard_24_register
+							  : (_ :: Bit 1))
+							 (scoreboard_25_readBeforeLaterWrites_1.read
+							  ? scoreboard_25_port_0.whas
+							    ? scoreboard_25_port_0.wget
+							    : scoreboard_25_register
+							  : (_ :: Bit 1))
+							 (scoreboard_26_readBeforeLaterWrites_1.read
+							  ? scoreboard_26_port_0.whas
+							    ? scoreboard_26_port_0.wget
+							    : scoreboard_26_register
+							  : (_ :: Bit 1))
+							 (scoreboard_27_readBeforeLaterWrites_1.read
+							  ? scoreboard_27_port_0.whas
+							    ? scoreboard_27_port_0.wget
+							    : scoreboard_27_register
+							  : (_ :: Bit 1))
+							 (scoreboard_28_readBeforeLaterWrites_1.read
+							  ? scoreboard_28_port_0.whas
+							    ? scoreboard_28_port_0.wget
+							    : scoreboard_28_register
+							  : (_ :: Bit 1))
+							 (scoreboard_29_readBeforeLaterWrites_1.read
+							  ? scoreboard_29_port_0.whas
+							    ? scoreboard_29_port_0.wget
+							    : scoreboard_29_register
+							  : (_ :: Bit 1))
+							 (scoreboard_30_readBeforeLaterWrites_1.read
+							  ? scoreboard_30_port_0.whas
+							    ? scoreboard_30_port_0.wget
+							    : scoreboard_30_register
+							  : (_ :: Bit 1))
+							 (scoreboard_31_readBeforeLaterWrites_1.read
+							  ? scoreboard_31_port_0.whas
+							    ? scoreboard_31_port_0.wget
+							    : scoreboard_31_register
+							  : (_ :: Bit 1)))
+					 (((fromImem_rv.port1__read[6:2] ==
+					    5'b11000) ||
+					   (fromImem_rv.port1__read[6:2] ==
+					    5'b1000) ||
+					   (fromImem_rv.port1__read[6:2] ==
+					    5'b1100))
+					  ? fromImem_rv.port1__read[24:20]
+					  : 5'd0))
+		   : (! (PrimArrayDynSelect (PrimBuildArray (scoreboard_0_readBeforeLaterWrites_1.read
+							     ? scoreboard_0_port_0.whas
+							       ? ! scoreboard_0_port_0.wget
+							       : (! scoreboard_0_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_1_readBeforeLaterWrites_1.read
+							     ? scoreboard_1_port_0.whas
+							       ? ! scoreboard_1_port_0.wget
+							       : (! scoreboard_1_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_2_readBeforeLaterWrites_1.read
+							     ? scoreboard_2_port_0.whas
+							       ? ! scoreboard_2_port_0.wget
+							       : (! scoreboard_2_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_3_readBeforeLaterWrites_1.read
+							     ? scoreboard_3_port_0.whas
+							       ? ! scoreboard_3_port_0.wget
+							       : (! scoreboard_3_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_4_readBeforeLaterWrites_1.read
+							     ? scoreboard_4_port_0.whas
+							       ? ! scoreboard_4_port_0.wget
+							       : (! scoreboard_4_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_5_readBeforeLaterWrites_1.read
+							     ? scoreboard_5_port_0.whas
+							       ? ! scoreboard_5_port_0.wget
+							       : (! scoreboard_5_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_6_readBeforeLaterWrites_1.read
+							     ? scoreboard_6_port_0.whas
+							       ? ! scoreboard_6_port_0.wget
+							       : (! scoreboard_6_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_7_readBeforeLaterWrites_1.read
+							     ? scoreboard_7_port_0.whas
+							       ? ! scoreboard_7_port_0.wget
+							       : (! scoreboard_7_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_8_readBeforeLaterWrites_1.read
+							     ? scoreboard_8_port_0.whas
+							       ? ! scoreboard_8_port_0.wget
+							       : (! scoreboard_8_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_9_readBeforeLaterWrites_1.read
+							     ? scoreboard_9_port_0.whas
+							       ? ! scoreboard_9_port_0.wget
+							       : (! scoreboard_9_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_10_readBeforeLaterWrites_1.read
+							     ? scoreboard_10_port_0.whas
+							       ? ! scoreboard_10_port_0.wget
+							       : (! scoreboard_10_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_11_readBeforeLaterWrites_1.read
+							     ? scoreboard_11_port_0.whas
+							       ? ! scoreboard_11_port_0.wget
+							       : (! scoreboard_11_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_12_readBeforeLaterWrites_1.read
+							     ? scoreboard_12_port_0.whas
+							       ? ! scoreboard_12_port_0.wget
+							       : (! scoreboard_12_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_13_readBeforeLaterWrites_1.read
+							     ? scoreboard_13_port_0.whas
+							       ? ! scoreboard_13_port_0.wget
+							       : (! scoreboard_13_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_14_readBeforeLaterWrites_1.read
+							     ? scoreboard_14_port_0.whas
+							       ? ! scoreboard_14_port_0.wget
+							       : (! scoreboard_14_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_15_readBeforeLaterWrites_1.read
+							     ? scoreboard_15_port_0.whas
+							       ? ! scoreboard_15_port_0.wget
+							       : (! scoreboard_15_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_16_readBeforeLaterWrites_1.read
+							     ? scoreboard_16_port_0.whas
+							       ? ! scoreboard_16_port_0.wget
+							       : (! scoreboard_16_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_17_readBeforeLaterWrites_1.read
+							     ? scoreboard_17_port_0.whas
+							       ? ! scoreboard_17_port_0.wget
+							       : (! scoreboard_17_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_18_readBeforeLaterWrites_1.read
+							     ? scoreboard_18_port_0.whas
+							       ? ! scoreboard_18_port_0.wget
+							       : (! scoreboard_18_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_19_readBeforeLaterWrites_1.read
+							     ? scoreboard_19_port_0.whas
+							       ? ! scoreboard_19_port_0.wget
+							       : (! scoreboard_19_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_20_readBeforeLaterWrites_1.read
+							     ? scoreboard_20_port_0.whas
+							       ? ! scoreboard_20_port_0.wget
+							       : (! scoreboard_20_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_21_readBeforeLaterWrites_1.read
+							     ? scoreboard_21_port_0.whas
+							       ? ! scoreboard_21_port_0.wget
+							       : (! scoreboard_21_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_22_readBeforeLaterWrites_1.read
+							     ? scoreboard_22_port_0.whas
+							       ? ! scoreboard_22_port_0.wget
+							       : (! scoreboard_22_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_23_readBeforeLaterWrites_1.read
+							     ? scoreboard_23_port_0.whas
+							       ? ! scoreboard_23_port_0.wget
+							       : (! scoreboard_23_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_24_readBeforeLaterWrites_1.read
+							     ? scoreboard_24_port_0.whas
+							       ? ! scoreboard_24_port_0.wget
+							       : (! scoreboard_24_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_25_readBeforeLaterWrites_1.read
+							     ? scoreboard_25_port_0.whas
+							       ? ! scoreboard_25_port_0.wget
+							       : (! scoreboard_25_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_26_readBeforeLaterWrites_1.read
+							     ? scoreboard_26_port_0.whas
+							       ? ! scoreboard_26_port_0.wget
+							       : (! scoreboard_26_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_27_readBeforeLaterWrites_1.read
+							     ? scoreboard_27_port_0.whas
+							       ? ! scoreboard_27_port_0.wget
+							       : (! scoreboard_27_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_28_readBeforeLaterWrites_1.read
+							     ? scoreboard_28_port_0.whas
+							       ? ! scoreboard_28_port_0.wget
+							       : (! scoreboard_28_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_29_readBeforeLaterWrites_1.read
+							     ? scoreboard_29_port_0.whas
+							       ? ! scoreboard_29_port_0.wget
+							       : (! scoreboard_29_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_30_readBeforeLaterWrites_1.read
+							     ? scoreboard_30_port_0.whas
+							       ? ! scoreboard_30_port_0.wget
+							       : (! scoreboard_30_register)
+							     : (_ :: Bit 1))
+							    (scoreboard_31_readBeforeLaterWrites_1.read
+							     ? scoreboard_31_port_0.whas
+							       ? ! scoreboard_31_port_0.wget
+							       : (! scoreboard_31_register)
+							     : (_ :: Bit 1)))
+					    (((fromImem_rv.port1__read[6:2] ==
+					       5'b11000) ||
+					      (fromImem_rv.port1__read[6:2] ==
+					       5'b0) ||
+					      (fromImem_rv.port1__read[6:2] ==
+					       5'b1000) ||
+					      (fromImem_rv.port1__read[6:2] ==
+					       5'b1100) ||
+					      (fromImem_rv.port1__read[6:2] ==
+					       5'b11001) ||
+					      (fromImem_rv.port1__read[6:2] ==
+					       5'b100))
+					     ? fromImem_rv.port1__read[19:15]
+					     : 5'd0))))) ||
+	       (d2e.i_notFull &&
+		((! rf_idx_forward_0.whas) ||
+		 (! ((((fromImem_rv.port1__read[6:2] == 5'b11000) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b0) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b1000) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b1100) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b11001) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b100))
+		      ? fromImem_rv.port1__read[19:15]
+		      : 5'd0) ==
+		     (rf_idx_forward_0.whas
+		      ? rf_idx_forward_0.wget
+		      : (_ :: Bit 5)))) ||
+		 rf_data_forward_0.whas) &&
+		((! rf_idx_forward_0.whas) ||
+		 (! ((((fromImem_rv.port1__read[6:2] == 5'b11000) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b1000) ||
+		       (fromImem_rv.port1__read[6:2] == 5'b1100))
+		      ? fromImem_rv.port1__read[24:20]
+		      : 5'd0) ==
+		     (rf_idx_forward_0.whas
+		      ? rf_idx_forward_0.wget
+		      : (_ :: Bit 5)))) ||
+		 rf_data_forward_0.whas)))) &&
+	   (! starting) && ((! doHalt) || doCanonicalize) &&
+	   (! isCanonicalized)
+Blocking rules: (none)
+ 
+Rule: execute
+Predicate: d2e.i_notEmpty &&
+	   e2w.i_notFull &&
+	   ((d2e.first[112] ==
+	     (epoch_execute_readBeforeLaterWrites_1.read
+	      ? epoch_execute_port_0.whas
+		? epoch_execute_port_0.wget
+		: epoch_execute_register
+	      : (_ :: Bit 1)))
+	    ? (d2e.first[183] || (! (d2e.first[181:180] == 2'b0)) ||
+	       ((((d2e.first[111:80] +
+		   ((d2e.first[212] &&
+		     ((d2e.first[212]
+		       ? d2e.first[211:209]
+		       : (_ :: Bit 3)) ==
+		      3'd0))
+		    ? sext d2e.first[208:197]
+		    : ((d2e.first[212] &&
+			((d2e.first[212]
+			  ? d2e.first[211:209]
+			  : (_ :: Bit 3)) ==
+			 3'd1))
+		       ? sext {d2e.first[208:202], d2e.first[188:184]}
+		       : ((d2e.first[212] &&
+			   ((d2e.first[212]
+			     ? d2e.first[211:209]
+			     : (_ :: Bit 3)) ==
+			    3'd2))
+			  ? sext {d2e.first[208], d2e.first[184], d2e.first[207:202], d2e.first[188:185], 1'b0}
+			  : ((d2e.first[212] &&
+			      ((d2e.first[212]
+				? d2e.first[211:209]
+				: (_ :: Bit 3)) ==
+			       3'd3))
+			     ? {d2e.first[208:189], 12'b0}
+			     : ((d2e.first[212] &&
+				 ((d2e_first____d873(...)[212]
+				   ? d2e_first____d873(...)[211:209]
+				   : (_ :: Bit 3)) ==
+				  3'd4))
+				? sext {d2e.first[208], d2e.first[196:189], d2e_first____d873(...)[197], d2e_first____d873(...)[207:198], 1'b0}
+				: 32'd0))))))[31:2] ==
+		  30'd1006649340) ||
+		 ((d2e.first[111:80] +
+		   ((d2e.first[212] &&
+		     ((d2e.first[212]
+		       ? d2e.first[211:209]
+		       : (_ :: Bit 3)) ==
+		      3'd0))
+		    ? sext d2e.first[208:197]
+		    : ((d2e.first[212] &&
+			((d2e.first[212]
+			  ? d2e.first[211:209]
+			  : (_ :: Bit 3)) ==
+			 3'd1))
+		       ? sext {d2e.first[208:202], d2e.first[188:184]}
+		       : ((d2e.first[212] &&
+			   ((d2e.first[212]
+			     ? d2e.first[211:209]
+			     : (_ :: Bit 3)) ==
+			    3'd2))
+			  ? sext {d2e.first[208], d2e.first[184], d2e.first[207:202], d2e.first[188:185], 1'b0}
+			  : ((d2e.first[212] &&
+			      ((d2e_first____d873(...)[212]
+				? d2e_first____d873(...)[211:209]
+				: (_ :: Bit 3)) ==
+			       3'd3))
+			     ? {d2e.first[208:189], 12'b0}
+			     : ((d2e.first[212] &&
+				 ((d2e_first__73_BIT_212___d884(...)
+				   ? d2e_first__73_BITS_211_TO_209___d885(...)
+				   : (_ :: Bit 3)) ==
+				  3'd4))
+				? sext {d2e_first____d873(...)[208], d2e_first____d873(...)[196:189], d2e_first__73_BIT_197___d913(...), d2e_first__73_BITS_207_TO_198___d914(...), 1'b0}
+				: 32'd0))))))[31:2] ==
+		  30'd1006649341) ||
+		 ((d2e.first[111:80] +
+		   ((d2e.first[212] &&
+		     ((d2e.first[212]
+		       ? d2e.first[211:209]
+		       : (_ :: Bit 3)) ==
+		      3'd0))
+		    ? sext d2e.first[208:197]
+		    : ((d2e.first[212] &&
+			((d2e.first[212]
+			  ? d2e.first[211:209]
+			  : (_ :: Bit 3)) ==
+			 3'd1))
+		       ? sext {d2e.first[208:202], d2e.first[188:184]}
+		       : ((d2e.first[212] &&
+			   ((d2e.first[212]
+			     ? d2e.first[211:209]
+			     : (_ :: Bit 3)) ==
+			    3'd2))
+			  ? sext {d2e.first[208], d2e.first[184], d2e.first[207:202], d2e.first[188:185], 1'b0}
+			  : ((d2e.first[212] &&
+			      ((d2e_first____d873(...)[212]
+				? d2e_first____d873(...)[211:209]
+				: (_ :: Bit 3)) ==
+			       3'd3))
+			     ? {d2e.first[208:189], 12'b0}
+			     : ((d2e.first[212] &&
+				 ((d2e_first__73_BIT_212___d884(...)
+				   ? d2e_first__73_BITS_211_TO_209___d885(...)
+				   : (_ :: Bit 3)) ==
+				  3'd4))
+				? sext {d2e_first____d873(...)[208], d2e_first____d873(...)[196:189], d2e_first__73_BIT_197___d913(...), d2e_first__73_BITS_207_TO_198___d914(...), 1'b0}
+				: 32'd0))))))[31:2] ==
+		  30'd1006649342))
+		? ! toMMIO_rv.port0__read[68]
+		: (! toDmem_rv.port0__read[68]))) &&
+	      ((((d2e.first[183:181] == 3'b110)
+		 ? (d2e.first[179] && d2e.first[180])
+		   ? d2e.first[176:145] +
+		     ((d2e.first[212] &&
+		       ((d2e.first[212]
+			 ? d2e.first[211:209]
+			 : (_ :: Bit 3)) ==
+			3'd0))
+		      ? sext d2e.first[208:197]
+		      : ((d2e.first[212] &&
+			  ((d2e.first[212]
+			    ? d2e.first[211:209]
+			    : (_ :: Bit 3)) ==
+			   3'd1))
+			 ? sext {d2e.first[208:202], d2e.first[188:184]}
+			 : ((d2e.first[212] &&
+			     ((d2e.first[212]
+			       ? d2e.first[211:209]
+			       : (_ :: Bit 3)) ==
+			      3'd2))
+			    ? sext {d2e.first[208], d2e.first[184], d2e.first[207:202], d2e.first[188:185], 1'b0}
+			    : ((d2e.first[212] &&
+				((d2e.first[212]
+				  ? d2e.first[211:209]
+				  : (_ :: Bit 3)) ==
+				 3'd3))
+			       ? {d2e.first[208:189], 12'b0}
+			       : ((d2e.first[212] &&
+				   ((d2e.first[212]
+				     ? d2e.first[211:209]
+				     : (_ :: Bit 3)) ==
+				    3'd4))
+				  ? sext {d2e.first[208], d2e.first[196:189], d2e.first[197], d2e.first[207:198], 1'b0}
+				  : 32'd0)))))
+		   : ((d2e.first[179] && (! d2e.first[180]))
+		      ? {(d2e.first[111:80] +
+			  ((d2e.first[212] &&
+			    ((d2e.first[212]
+			      ? d2e.first[211:209]
+			      : (_ :: Bit 3)) ==
+			     3'd0))
+			   ? sext d2e.first[208:197]
+			   : ((d2e.first[212] &&
+			       ((d2e.first[212]
+				 ? d2e.first[211:209]
+				 : (_ :: Bit 3)) ==
+				3'd1))
+			      ? sext {d2e.first[208:202], d2e.first[188:184]}
+			      : ((d2e.first[212] &&
+				  ((d2e_first____d873(...)[212]
+				    ? d2e_first____d873(...)[211:209]
+				    : (_ :: Bit 3)) ==
+				   3'd2))
+				 ? sext {d2e.first[208], d2e.first[184], d2e_first____d873(...)[207:202], d2e_first____d873(...)[188:185], 1'b0}
+				 : ((d2e.first[212] &&
+				     ((d2e_first__73_BIT_212___d884(...)
+				       ? d2e_first__73_BITS_211_TO_209___d885(...)
+				       : (_ :: Bit 3)) ==
+				      3'd3))
+				    ? {d2e.first[208:189], 12'b0}
+				    : ((d2e_first____d873(...)[212] &&
+					(IF_d2e_first__73_BIT_212_84_THEN_d2e_first__73_ETC___d886(...) ==
+					 3'd4))
+				       ? sext {d2e_first__73_BIT_208___d899(...), d2e_first__73_BITS_196_TO_189___d912(...), d2e_first__73_BIT_197_13_CONCAT_d2e_first__73__ETC___d915(...), 1'b0}
+				       : 32'd0))))))[31:1], 1'd0}
+		      : (((d2e.first[191:189] == 3'b0)
+			  ? d2e.first[111:80] == d2e.first[79:48]
+			  : ((d2e.first[191:189] == 3'b1)
+			     ? ! (d2e.first[111:80] == d2e.first[79:48])
+			     : ((d2e.first[191:189] == 3'b100)
+				? d2e.first[111:80] .< d2e.first[79:48]
+				: ((d2e.first[191:189] == 3'b101)
+				   ? ! (d2e.first[111:80] .< d2e.first[79:48])
+				   : ((d2e.first[191:189] == 3'b110)
+				      ? d2e.first[111:80] < d2e.first[79:48]
+				      : (! (d2e.first[111:80] <
+					    d2e.first[79:48])))))))
+			 ? d2e.first[176:145] +
+			   ((d2e.first[212] &&
+			     ((d2e.first[212]
+			       ? d2e.first[211:209]
+			       : (_ :: Bit 3)) ==
+			      3'd0))
+			    ? sext d2e.first[208:197]
+			    : ((d2e.first[212] &&
+				((d2e.first[212]
+				  ? d2e.first[211:209]
+				  : (_ :: Bit 3)) ==
+				 3'd1))
+			       ? sext {d2e.first[208:202], d2e.first[188:184]}
+			       : ((d2e.first[212] &&
+				   ((d2e.first[212]
+				     ? d2e.first[211:209]
+				     : (_ :: Bit 3)) ==
+				    3'd2))
+				  ? sext {d2e.first[208], d2e.first[184], d2e.first[207:202], d2e.first[188:185], 1'b0}
+				  : ((d2e.first[212] &&
+				      ((d2e_first____d873(...)[212]
+					? d2e_first____d873(...)[211:209]
+					: (_ :: Bit 3)) ==
+				       3'd3))
+				     ? {d2e.first[208:189], 12'b0}
+				     : ((d2e.first[212] &&
+					 ((d2e_first__73_BIT_212___d884(...)
+					   ? d2e_first__73_BITS_211_TO_209___d885(...)
+					   : (_ :: Bit 3)) ==
+					  3'd4))
+					? sext {d2e_first____d873(...)[208], d2e_first____d873(...)[196:189], d2e_first__73_BIT_197___d913(...), d2e_first__73_BITS_207_TO_198___d914(...), 1'b0}
+					: 32'd0)))))
+			 : (d2e.first[176:145] + 32'd4)))
+		 : (d2e.first[176:145] + 32'd4)) ==
+		d2e.first[144:113]) ||
+	       (! misprediction_rv.port0__read[32]))
+	    : squashed.i_notFull) &&
+	   (! starting) && ((! doHalt) || doCanonicalize) &&
+	   (! isCanonicalized)
+Blocking rules: (none)
+ 
+Rule: writeback
+Predicate: e2w.i_notEmpty &&
+	   (e2w.first[48] ||
+	    (retired.i_notFull &&
+	     (e2w.first[55] || (! (e2w.first[53:52] == 2'b0)) ||
+	      ((e2w.i_notEmpty && e2w.first[121])
+	       ? fromMMIO_rv.port1__read[68]
+	       : fromDmem_rv.port1__read[68])) &&
+	     (e2w.first[88] || (! exception_rv.port0__read[32])) &&
+	     ((! e2w.first[85]) ||
+	      (e2w.first[60:56] == 5'd0) ||
+	      e2w.first[55] || (! (e2w.first[53:52] == 2'b0)) ||
+	      (((e2w.first[126:124] == 3'b0) ||
+		(e2w.first[126:124] == 3'b1) ||
+		(e2w.first[126:124] == 3'b100) ||
+		(e2w.first[126:124] == 3'b101))
+	       ? (e2w.i_notEmpty && e2w.first[121])
+		 ? fromMMIO_rv.port1__read[68]
+		 : fromDmem_rv.port1__read[68]
+	       : ((! (e2w.first[126:124] == 3'b10)) ||
+		  ((e2w.i_notEmpty && e2w.first[121])
+		   ? fromMMIO_rv.port1__read[68]
+		   : fromDmem_rv.port1__read[68])))))) &&
+	   (! starting) && ((! doHalt) || doCanonicalize) &&
+	   (! isCanonicalized)
+Blocking rules: (none)
+ 
+Rule: waitCanonicalization
+Predicate: doCanonicalize && (! isCanonicalized) && (! f2d.notEmpty) &&
+	   (! d2e.notEmpty) &&
+	   (! e2w.notEmpty) &&
+	   (! exception_rv.port1__read[32]) &&
+	   (! misprediction_rv.port1__read[32])
+Blocking rules: fetch
+ 
+Rule: administrative_konata_commit
+Predicate: retired.i_notEmpty
+Blocking rules: (none)
+ 
+Rule: administrative_konata_flush
+Predicate: squashed.i_notEmpty
+Blocking rules: (none)
+ 
+Logical execution order: getIResp,
+			 getDResp,
+			 getMMIOResp,
+			 halted,
+			 restarted,
+			 canonicalized,
+			 request,
+			 response,
+			 restart,
+			 writeback,
+			 execute,
+			 getDReq,
+			 getMMIOReq,
+			 fetch,
+			 getIReq,
+			 decode,
+			 halt,
+			 canonicalize,
+			 waitCanonicalization,
+			 administrative_konata_commit,
+			 administrative_konata_flush,
+			 do_tic_logging,
+			 scoreboard_0_canonicalize,
+			 scoreboard_1_canonicalize,
+			 scoreboard_2_canonicalize,
+			 scoreboard_3_canonicalize,
+			 scoreboard_4_canonicalize,
+			 scoreboard_5_canonicalize,
+			 scoreboard_6_canonicalize,
+			 scoreboard_7_canonicalize,
+			 scoreboard_8_canonicalize,
+			 scoreboard_9_canonicalize,
+			 scoreboard_10_canonicalize,
+			 scoreboard_11_canonicalize,
+			 scoreboard_12_canonicalize,
+			 scoreboard_13_canonicalize,
+			 scoreboard_14_canonicalize,
+			 scoreboard_15_canonicalize,
+			 scoreboard_16_canonicalize,
+			 scoreboard_17_canonicalize,
+			 scoreboard_18_canonicalize,
+			 scoreboard_19_canonicalize,
+			 scoreboard_20_canonicalize,
+			 scoreboard_21_canonicalize,
+			 scoreboard_22_canonicalize,
+			 scoreboard_23_canonicalize,
+			 scoreboard_24_canonicalize,
+			 scoreboard_25_canonicalize,
+			 scoreboard_26_canonicalize,
+			 scoreboard_27_canonicalize,
+			 scoreboard_28_canonicalize,
+			 scoreboard_29_canonicalize,
+			 scoreboard_30_canonicalize,
+			 scoreboard_31_canonicalize,
+			 epoch_fetch_canonicalize,
+			 epoch_execute_canonicalize
+
+===========================================

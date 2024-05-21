@@ -318,7 +318,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         else begin
             case (addr[1:0]) matches
                 2'b00: begin
-                    writeLRUBits(set_index, data[way_index_length-2:0]);
+                    writeLRUBits(set_index, data[way_index_length-1:0]); //changed from 2 to 1 please check
                 end
                 2'b01: begin
                     writeTagAndStatus(set_index, way_index, data);

@@ -1,0 +1,220 @@
+=== Generated schedule for mkCacheInterface ===
+
+Method schedule
+---------------
+Method: sendReqData
+Ready signal: (! is_canonicalizing) && (! is_canonicalized) &&
+	      cacheD.RDY_putFromProc
+Conflict-free: sendReqInstr,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced before (restricted): getRespData,
+			       getRespInstr,
+			       halt,
+			       canonicalize,
+			       restart
+Conflicts: sendReqData
+ 
+Method: getRespData
+Ready signal: (! is_canonicalized) && cacheD.RDY_getToProc
+Conflict-free: getRespInstr, halted, restarted, canonicalized
+Sequenced before (restricted): halt, canonicalize, restart
+Sequenced after (restricted): sendReqData, sendReqInstr, request, response
+Conflicts: getRespData
+ 
+Method: sendReqInstr
+Ready signal: (! is_canonicalizing) && (! is_canonicalized) &&
+	      cacheI.RDY_putFromProc
+Conflict-free: sendReqData,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced before (restricted): getRespData,
+			       getRespInstr,
+			       halt,
+			       canonicalize,
+			       restart
+Conflicts: sendReqInstr
+ 
+Method: getRespInstr
+Ready signal: (! is_canonicalized) && cacheI.RDY_getToProc
+Conflict-free: getRespData, halted, restarted, canonicalized
+Sequenced before (restricted): halt, canonicalize, restart
+Sequenced after (restricted): sendReqData, sendReqInstr, request, response
+Conflicts: getRespInstr
+ 
+Method: halt
+Ready signal: mainMem.RDY_halt &&
+	      cacheI.RDY_halt && cacheD.RDY_halt && cacheL2.RDY_halt
+Conflict-free: canonicalized
+Sequenced after: restarted
+Sequenced after (restricted): sendReqData,
+			      getRespData,
+			      sendReqInstr,
+			      getRespInstr,
+			      restart,
+			      halted,
+			      request,
+			      response
+Conflicts: halt, canonicalize
+ 
+Method: canonicalize
+Ready signal: mainMem.RDY_halt &&
+	      cacheI.RDY_halt && cacheD.RDY_halt && cacheL2.RDY_halt
+Sequenced after: restarted, canonicalized
+Sequenced after (restricted): sendReqData,
+			      getRespData,
+			      sendReqInstr,
+			      getRespInstr,
+			      restart,
+			      halted,
+			      request,
+			      response
+Conflicts: halt, canonicalize
+ 
+Method: restart
+Ready signal: True
+Sequenced before (restricted): halt, canonicalize, restart
+Sequenced after: restarted, canonicalized
+Sequenced after (restricted): sendReqData,
+			      getRespData,
+			      sendReqInstr,
+			      getRespInstr,
+			      halted,
+			      request,
+			      response
+ 
+Method: halted
+Ready signal: is_canonicalizing || is_canonicalized
+Conflict-free: sendReqData,
+	       getRespData,
+	       sendReqInstr,
+	       getRespInstr,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced before (restricted): halt, canonicalize, restart
+ 
+Method: restarted
+Ready signal: (! is_canonicalizing) && (! is_canonicalized)
+Conflict-free: sendReqData,
+	       getRespData,
+	       sendReqInstr,
+	       getRespInstr,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced before: halt, canonicalize, restart
+ 
+Method: canonicalized
+Ready signal: is_canonicalized
+Conflict-free: sendReqData,
+	       getRespData,
+	       sendReqInstr,
+	       getRespInstr,
+	       halt,
+	       halted,
+	       restarted,
+	       canonicalized,
+	       request,
+	       response
+Sequenced before: canonicalize, restart
+ 
+Method: request
+Ready signal: cacheI.RDY_request &&
+	      cacheD.RDY_request && cacheL2.RDY_request && mainMem.RDY_request
+Conflict-free: sendReqData, sendReqInstr, halted, restarted, canonicalized
+Sequenced before (restricted): getRespData,
+			       getRespInstr,
+			       halt,
+			       canonicalize,
+			       restart,
+			       response
+Conflicts: request
+ 
+Method: response
+Ready signal: cacheI.RDY_response &&
+	      cacheD.RDY_response &&
+	      cacheL2.RDY_response && mainMem.RDY_response
+Conflict-free: sendReqData, sendReqInstr, halted, restarted, canonicalized
+Sequenced before (restricted): getRespData,
+			       getRespInstr,
+			       halt,
+			       canonicalize,
+			       restart
+Sequenced after (restricted): request
+Conflicts: response
+ 
+Rule schedule
+-------------
+Rule: getFromMem
+Predicate: mainMem.RDY_get && cacheL2.RDY_putFromMem
+Blocking rules: (none)
+ 
+Rule: sendToMem
+Predicate: mainMem.RDY_put && cacheL2.RDY_getToMem
+Blocking rules: request
+ 
+Rule: getFromL2
+Predicate: cacheL2.RDY_getToProc &&
+	   (toL2RoundRobin
+	    ? cacheI.RDY_putFromMem
+	    : cacheD.RDY_putFromMem)
+Blocking rules: sendReqInstr, sendReqData
+ 
+Rule: sendToL2
+Predicate: ((((! toL2RoundRobin) && iToL2_rv.port1__read[539]) ||
+	     dToL2_rv.port1__read[539])
+	    ? cacheL2.RDY_putFromProc
+	    : ((! toL2RoundRobin) || (! iToL2_rv.port1__read[539]) ||
+	       cacheL2.RDY_putFromProc)) &&
+	   (! outstandingMiss)
+Blocking rules: getFromL2, getFromMem
+ 
+Rule: toL2Data
+Predicate: cacheD.RDY_getToMem && (! dToL2_rv.port0__read[539])
+Blocking rules: (none)
+ 
+Rule: toL2Instr
+Predicate: cacheI.RDY_getToMem && (! iToL2_rv.port0__read[539])
+Blocking rules: (none)
+ 
+Rule: check_canonicalization
+Predicate: mainMem.RDY_canonicalized &&
+	   cacheI.RDY_canonicalized &&
+	   cacheD.RDY_canonicalized && cacheL2.RDY_canonicalized &&
+	   is_canonicalizing && (! is_canonicalized) &&
+	   (! iToL2_rv.port1__read[539]) &&
+	   (! dToL2_rv.port1__read[539])
+Blocking rules: (none)
+ 
+Logical execution order: sendReqData,
+			 sendReqInstr,
+			 halted,
+			 restarted,
+			 canonicalized,
+			 request,
+			 response,
+			 getFromMem,
+			 sendToMem,
+			 getFromL2,
+			 getRespData,
+			 getRespInstr,
+			 toL2Data,
+			 toL2Instr,
+			 check_canonicalization,
+			 restart,
+			 sendToL2,
+			 halt,
+			 canonicalize
+
+================================================

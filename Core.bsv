@@ -18,7 +18,7 @@ interface CoreInterface;
     method ActionValue#(ExchangeData) response(ComponentdId id);
 endinterface
 
-
+(* synthesize *)
 module mkCore(CoreInterface);
 
     CacheInterface cache <- mkCacheInterface();

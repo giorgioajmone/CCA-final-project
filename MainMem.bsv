@@ -28,6 +28,7 @@ interface MainMemFast;
     method ActionValue#(Word) get();
 endinterface
 
+(* synthesize *)
 module mkMainMemFast(MainMemFast);
     BRAM_Configure cfg = defaultValue();
     cfg.loadFormat = tagged Hex "mem.vmh";
@@ -53,6 +54,7 @@ module mkMainMemFast(MainMemFast);
     endmethod
 endmodule
 
+(* synthesize *)
 module mkMainMem(MainMem);
     BRAM_Configure cfg = defaultValue();
     cfg.loadFormat = tagged Hex "memlines.vmh";

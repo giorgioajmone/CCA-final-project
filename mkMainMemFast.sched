@@ -1,0 +1,117 @@
+=== Generated schedule for mkMainMemFast ===
+
+Method schedule
+---------------
+Method: put
+Ready signal: bram_serverAdapter_cnt .< 3'd3
+Conflict-free: get
+Conflicts: put
+ 
+Method: get
+Ready signal: dl_d_9_rv.port0__read[32]
+Conflict-free: put
+Conflicts: get
+ 
+Rule schedule
+-------------
+Rule: bram_serverAdapter_outData_enqueue
+Predicate: bram_serverAdapter_outData_enqw.whas &&
+	   ((! bram_serverAdapter_outData_dequeueing.whas) ||
+	    bram_serverAdapter_outData_ff.i_notEmpty)
+Blocking rules: (none)
+ 
+Rule: bram_serverAdapter_outData_dequeue
+Predicate: bram_serverAdapter_outData_dequeueing.whas &&
+	   bram_serverAdapter_outData_ff.i_notEmpty
+Blocking rules: (none)
+ 
+Rule: bram_serverAdapter_cnt_finalAdd
+Predicate: bram_serverAdapter_cnt_1.whas || bram_serverAdapter_cnt_2.whas ||
+	   bram_serverAdapter_cnt_3.whas
+Blocking rules: (none)
+ 
+Rule: bram_serverAdapter_s1__dreg_update
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: bram_serverAdapter_stageReadResponseAlways
+Predicate: bram_serverAdapter_writeWithResp.whas
+Blocking rules: (none)
+ 
+Rule: bram_serverAdapter_moveToOutFIFO
+Predicate: ((! bram_serverAdapter_s1[0]) ||
+	    bram_serverAdapter_outData_ff.i_notFull) &&
+	   bram_serverAdapter_s1[1]
+Blocking rules: (none)
+ 
+Rule: bram_serverAdapter_overRun
+Predicate: bram_serverAdapter_s1[1] &&
+	   ((! bram_serverAdapter_outData_beforeEnq.read) ||
+	    (! bram_serverAdapter_outData_beforeDeq.read) ||
+	    (! bram_serverAdapter_outData_ff.i_notFull))
+Blocking rules: (none)
+ 
+Rule: dl_try_move
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: dl_try_move_1
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: dl_try_move_2
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: dl_try_move_3
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: dl_try_move_4
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: dl_try_move_5
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: dl_try_move_6
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: dl_try_move_7
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: dl_try_move_8
+Predicate: True
+Blocking rules: (none)
+ 
+Rule: deq
+Predicate: bram_serverAdapter_outData_beforeDeq.read &&
+	   (bram_serverAdapter_outData_ff.i_notEmpty ||
+	    bram_serverAdapter_outData_enqw.whas) &&
+	   (! dl_d_0_rv.port1__read[32])
+Blocking rules: (none)
+ 
+Logical execution order: put,
+			 get,
+			 bram_serverAdapter_stageReadResponseAlways,
+			 bram_serverAdapter_overRun,
+			 bram_serverAdapter_moveToOutFIFO,
+			 bram_serverAdapter_s1__dreg_update,
+			 dl_try_move,
+			 dl_try_move_1,
+			 dl_try_move_2,
+			 dl_try_move_3,
+			 dl_try_move_4,
+			 dl_try_move_5,
+			 dl_try_move_6,
+			 dl_try_move_7,
+			 dl_try_move_8,
+			 deq,
+			 bram_serverAdapter_outData_enqueue,
+			 bram_serverAdapter_outData_dequeue,
+			 bram_serverAdapter_cnt_finalAdd
+
+=============================================

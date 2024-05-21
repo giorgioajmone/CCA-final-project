@@ -10,7 +10,11 @@ using json = nlohmann::json;
 using namespace boost::multiprecision;
 
 #define CORE_ID 0
-#define MAIN_MEM_ID 4
+#define REGISTER_FILE_ID 0
+#define L1I_ID REGISTER_FILE_ID + 1
+#define L1D_ID L1I_ID + 1
+#define L2_ID L1D_ID + 1
+#define MAIN_MEM_ID L2_ID + 1
 #define RF_SIZE 32
 #define MAIN_MEM_SIZE 65536
 
@@ -76,7 +80,7 @@ static void exportSnapshot(std::ostream &s){
 
     //RF
     for(uint64_t i = 1; i < RF_SIZE; i++){
-        request(READ, CORE_ID, (uint64_t) i, 0);
+        request(READ, REGISTER_FILE_ID, (uint64_t) i, 0);
         snapshot["RegisterFile"].emplace_back((uint64_t)receivedData);
     }
 
@@ -106,13 +110,13 @@ static void importSnapshot(std::istream &s){
 
     //RF
     for(uint64_t i = 1; i < RF_SIZE; i++){
-        request(READ, CORE_ID, (uint64_t) i, 0);
+        request(WRITE, REGISTER_FILE_ID, (uint64_t) i, 0);
         snapshot["RegisterFile"].emplace_back((uint64_t)receivedData);
     }
 
     //MAIN MEMORY
     for(uint64_t i = 0; i < MAIN_MEM_SIZE; i++){
-        request(READ, MAIN_MEM_ID, (uint64_t) i, 0);
+        request(WRITE, MAIN_MEM_ID, (uint64_t) i, 0);
         snapshot["MainMem"].emplace_back(receivedData);
     }
 

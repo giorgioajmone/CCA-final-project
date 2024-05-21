@@ -43,7 +43,7 @@ interface Glue;
 endinterface
 
 (* synthesize *)
-module mkInterface#(CoreIndication indication)(Glue);
+module mkF2H#(CoreIndication indication)(Glue);
 
     FIFOF#(ComponentdId) inFlight <- mkBypassFIFOF;
 

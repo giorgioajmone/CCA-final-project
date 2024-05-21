@@ -35,6 +35,7 @@ typedef enum {
     DATA
 } CacheInterfaceRR deriving (Eq, FShow, Bits);
 
+(* synthesize *)
 module mkCacheInterface(CacheInterface);
     let verbose = False;
     MainMem mainMem <- mkMainMem(); 
@@ -167,7 +168,7 @@ module mkCacheInterface(CacheInterface);
             1: cacheD.request(operation, id, addr, data);
             2: cacheL2.request(operation, id, addr, data);
             3: mainMem.request(operation, id, addr, data);
-            default: dynamicAssert(false, "CacheInterface.request: Invalid component ID");
+            default: dynamicAssert(False, "CacheInterface.request: Invalid component ID");
         endcase
     endmethod
 
@@ -190,7 +191,7 @@ module mkCacheInterface(CacheInterface);
                 return data;
             end
             default: begin 
-                dynamicAssert(false, "CacheInterface.response: Invalid component ID");
+                dynamicAssert(False, "CacheInterface.response: Invalid component ID");
                 return signExtend(1'b1);
             end
         endcase
