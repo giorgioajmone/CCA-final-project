@@ -18,12 +18,9 @@ interface Cache32;
 
     // INSTRUMENTATION 
     method Action halt;
-    method Action canonicalize;
     method Action restart;
     method Action halted;
     method Action restarted;
-    method Action canonicalized;
-    method Action hasCanonicalized;
 
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
     method ActionValue#(ExchangeData) response(ComponentdId id);
@@ -51,12 +48,10 @@ module mkCache32(Cache32);
     // INSTRUMENTATION
 
     Reg#(Bool) doHalt <- mkReg(False);
-    Reg#(Bool) doCanonicalize <- mkReg(False);
-    Reg#(Bool) isCanonicalized <- mkReg(False);
     FIFO#(Bit#(64)) responseFIFO <- mkBypassFIFO;
     FIFO#(Bit#(3)) sliceFIFO <- mkBypassFIFO;
 
-    rule startMiss if(mshr[1] == StartMiss && (!doHalt || doCanonicalize) && !isCanonicalized);
+    rule startMiss if(mshr[1] == StartMiss && !doHalt);
         if(cacheStates[reqToAnswer.index] == Dirty) begin
             cacheData.portA.request.put(BRAMRequestBE{writeen : 0, responseOnWrite : False, address : reqToAnswer.index, datain : ?});
             mshr[1] <= ReadingCacheMiss; 
@@ -65,12 +60,12 @@ module mkCache32(Cache32);
         end                         
     endrule
 
-    rule sendFillReq if(mshr[1] == SendFillReq && (!doHalt || doCanonicalize) && !isCanonicalized);
+    rule sendFillReq if(mshr[1] == SendFillReq && !doHalt);
         memReqQ.enq(MainMemReq{write : 0, addr : {reqToAnswer.tag, reqToAnswer.index}, data : ?});
         mshr[1] <= WaitFillResp;
     endrule
 
-    rule waitFillResp if(mshr[1] == WaitFillResp && (!doHalt || doCanonicalize) && !isCanonicalized);
+    rule waitFillResp if(mshr[1] == WaitFillResp && !doHalt);
         LineData line = unpack(memRespQ.first());
         cacheTags[reqToAnswer.index] <= reqToAnswer.tag;
         if (missReq.word_byte == 0) begin
@@ -85,19 +80,19 @@ module mkCache32(Cache32);
         cacheData.portA.request.put(BRAMRequestBE{writeen : 64'hFFFFFFFFFFFFFFFF, responseOnWrite : False, address : reqToAnswer.index, datain : line});
     endrule
 
-    rule processLoadRequest if(mshr[0] == ReadingCacheHit && (!doHalt || doCanonicalize) && !isCanonicalized);
+    rule processLoadRequest if(mshr[0] == ReadingCacheHit && !doHalt);
         let line <- cacheData.portA.response.get();
         hitQ.enq(line[reqToAnswer.offset]);
         mshr[0] <= Ready;
     endrule
 
-    rule processStoreRequest if(mshr[0] == ReadingCacheMiss && (!doHalt || doCanonicalize) && !isCanonicalized);
+    rule processStoreRequest if(mshr[0] == ReadingCacheMiss && !doHalt);
         let line <- cacheData.portA.response.get();
         memReqQ.enq(MainMemReq{write : 1, addr : {cacheTags[reqToAnswer.index], reqToAnswer.index}, data : pack(line)});
         mshr[0] <= SendFillReq;
     endrule
 
-    method Action putFromProc(CacheReq e) if(mshr[1] == Ready && (!doHalt || doCanonicalize) && !isCanonicalized);
+    method Action putFromProc(CacheReq e) if(mshr[1] == Ready && !doHalt);
         ParsedAddress pa = parseAddress(e.addr);
         reqToAnswer <= pa;
         if (cacheTags[pa.index] == pa.tag && cacheStates[pa.index] != Invalid) begin
@@ -111,21 +106,21 @@ module mkCache32(Cache32);
         end else begin missReq <= e; mshr[1] <= StartMiss; end
     endmethod
         
-    method ActionValue#(Word) getToProc() if((!doHalt || doCanonicalize) && !isCanonicalized);
+    method ActionValue#(Word) getToProc() if(!doHalt);
         let x = hitQ.first(); hitQ.deq();
         return x;
     endmethod
         
-    method ActionValue#(MainMemReq) getToMem() if((!doHalt || doCanonicalize) && !isCanonicalized);
+    method ActionValue#(MainMemReq) getToMem() if(!doHalt);
         let x = memReqQ.first(); memReqQ.deq();
         return x;
     endmethod
         
-    method Action putFromMem(MainMemResp e) if((!doHalt || doCanonicalize) && !isCanonicalized);
+    method Action putFromMem(MainMemResp e) if((!doHalt));
         memRespQ.enq(e);
     endmethod
 
-    rule waitCacheOp ((doHalt && !doCanonicalize) || isCanonicalized);
+    rule waitCacheOp if(doHalt);
         let line <- cacheData.portA.response.get(); 
         let slice <- sliceFIFO.first();
         SlicedData slices = unpack(line);
@@ -133,35 +128,21 @@ module mkCache32(Cache32);
         responseFIFO.enq(slices[slice]);
     endrule
 
-    method hasCanonicalized if(doHalt && doCanonicalize && !isCanonicalized);
-        doCanonicalize <= False;
-        isCanonicalized <= True;
-    endmethod
-
     method Action halt if(!doHalt);
         doHalt <= True;
     endmethod
 
     method Action halted if(doHalt);
-    endmethod
+    endmethod  
 
-    method Action canonicalize if(!doCanonicalize && !isCanonicalized);
-        doCanonicalize <= True;
-        isCanonicalized <= False;
-    endmethod
-
-    method Action canonicalized if(isCanonicalized);
-    endmethod    
-
-    method Action restart if((doHalt && !doCanonicalize) || isCanonicalized);
+    method Action restart if(doHalt);
         doHalt <= False;
-        isCanonicalized <= False;
     endmethod
 
-    method Action restarted if(!doHalt && !doCanonicalize && !isCanonicalized);
+    method Action restarted if(!doHalt);
     endmethod    
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if((doHalt && !doCanonicalize) || isCanonicalized);
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(doHalt);
         let field = addr[8:7];
         let address = addr[6:0];
         let slice = addr[11:9];
@@ -184,7 +165,7 @@ module mkCache32(Cache32);
                     cacheStates[address] <= data[valueOf(LineState)-1:0];
                     responseFIFO.enq(data);
                 end
-                2'b10: begin //correct write enable based on slice
+                2'b10: begin
                     cacheData.portA.request.put(BRAMRequestBE{writeen : writeSliceOffset(slice), responseOnWrite : True, address : address, datain : data});
                     sliceFIFO.enq(slice);
                 end
@@ -192,7 +173,7 @@ module mkCache32(Cache32);
         end
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentdId id) if((doHalt && !doCanonicalize) || isCanonicalized);
+    method ActionValue#(ExchangeData) response(ComponentdId id) if(doHalt);
         let out = responseFIFO.first();
         responseFIFO.deq();
         return zeroExtend(out);

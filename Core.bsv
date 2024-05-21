@@ -16,6 +16,7 @@ interface CoreInterface;
     method Action canonicalized;
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
     method ActionValue#(ExchangeData) response(ComponentdId id);
+    method ActionValue#(Bit#(33)) getMMIO;
 endinterface
 
 (* synthesize *)
@@ -29,6 +30,9 @@ module mkCore(CoreInterface);
     FIFO#(Mem) mmioreq <- mkFIFO;
     let debug = True;
     Reg#(Bit#(32)) cycle_count <- mkReg(0);
+
+    Reg#(Bool) doCanonicalize <- mkReg(False);
+    FIFO#(Bit#(33)) mmio2host <- mkFIFO;
 
     rule tic;
 	    cycle_count <= cycle_count + 1;
@@ -72,12 +76,14 @@ module mkCore(CoreInterface);
         if (req.byte_en == 'hf) begin
             if (req.addr == 'hf000_fff4) begin
                 // Write integer to STDERR
+                mmio2host.enq({1'b1,req.data});
                 $fwrite(stderr, "%0d", req.data);
                 $fflush(stderr);
             end
         end
         if (req.addr ==  'hf000_fff0) begin
             // Writing to STDERR
+            mmio2host.enq(zeroExtend(req.data[7:0]));
             $fwrite(stderr, "%c", req.data[7:0]);
             $fflush(stderr);
         end else begin
@@ -105,11 +111,9 @@ module mkCore(CoreInterface);
 
     // INSTRUMENTATION
 
-    Reg#(Bool) doCanonicalize <- mkReg(False);
-
     rule canonicalization if(doCanonicalize);
         rv_core.canonicalized();
-        cache.canonicalize();
+        cache.halt();
         doCanonicalize <= False;
     endrule
 
@@ -120,6 +124,7 @@ module mkCore(CoreInterface);
     
     method Action canonicalize if(!doCanonicalize);
         rv_core.canonicalize();
+        cache.restart();
         doCanonicalize <= True;
     endmethod
     
@@ -134,7 +139,7 @@ module mkCore(CoreInterface);
     endmethod
 
     method Action canonicalized;
-        cache.canonicalized();
+        rv_core.canonicalized();
     endmethod
 
     method Action restarted;
@@ -162,5 +167,10 @@ module mkCore(CoreInterface);
         endcase;
         return data;
     endmethod 
+
+    method ActionValue#(Bit#(33)) getMMIO;
+        mmio2host.deq();
+        return mmio2host.first();
+    endmethod
     
 endmodule

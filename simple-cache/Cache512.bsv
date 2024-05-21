@@ -14,11 +14,9 @@ interface Cache512;
 
     // INSTRUMENTATION 
     method Action halt;
-    method Action canonicalize;
     method Action restart;
     method Action halted;
     method Action restarted;
-    method Action canonicalized;
 
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
     method ActionValue#(ExchangeData) response(ComponentdId id);
@@ -43,7 +41,13 @@ module mkCache(Cache512);
     FIFO#(MainMemReq) memReqQ <- mkFIFO;
     FIFO#(MainMemResp)  memRespQ <- mkFIFO;
 
-    rule startMiss(mshr[1] == StartMiss);
+    // INSTRUMENTATION
+
+    Reg#(Bool) doHalt <- mkReg(False);
+    FIFO#(Bit#(64)) responseFIFO <- mkBypassFIFO;
+    FIFO#(Bit#(3)) sliceFIFO <- mkBypassFIFO;
+
+    rule startMiss(mshr[1] == StartMiss && !doHalt);
         if(cacheStates[reqToAnswer.index] == Dirty) begin
             cacheData.portA.request.put(BRAMRequest{write : 0, responseOnWrite : False, address : reqToAnswer.index, datain : ?});
             mshr[1] <= ReadingCacheMiss; 
@@ -52,7 +56,7 @@ module mkCache(Cache512);
         end                         
     endrule
 
-    rule sendFillReq (mshr[1] == SendFillReq);
+    rule sendFillReq (mshr[1] == SendFillReq && !doHalt);
         if(missReq.write == 0) begin
             memReqQ.enq(MainMemReq{write : 0, addr : {reqToAnswer.tag, reqToAnswer.index}, data : ?});
             mshr[1] <= WaitFillResp;
@@ -64,7 +68,7 @@ module mkCache(Cache512);
         end
     endrule
 
-    rule waitFillResp(mshr[1] == WaitFillResp);
+    rule waitFillResp(mshr[1] == WaitFillResp && !doHalt);
         let line = memRespQ.first(); memRespQ.deq(); 
         cacheTags[reqToAnswer.index] <= reqToAnswer.tag;
         cacheStates[reqToAnswer.index] <= Clean;
@@ -73,19 +77,19 @@ module mkCache(Cache512);
         mshr[1] <= Ready;
     endrule
 
-    rule processLoadRequest if (mshr[0] == ReadingCacheHit);
+    rule processLoadRequest if (mshr[0] == ReadingCacheHit && !doHalt);
         let line <- cacheData.portA.response.get();
         hitQ.enq(line);
         mshr[0] <= Ready;
     endrule
 
-    rule processStoreRequest if (mshr[0] == ReadingCacheMiss);
+    rule processStoreRequest if (mshr[0] == ReadingCacheMiss && !doHalt);
         let line <- cacheData.portA.response.get();
         memReqQ.enq(MainMemReq{write : 1, addr : {cacheTags[reqToAnswer.index], reqToAnswer.index}, data : line});
         mshr[0] <= SendFillReq;
     endrule
 
-    method Action putFromProc(MainMemReq e) if(mshr[1] == Ready);
+    method Action putFromProc(MainMemReq e) if(mshr[1] == Ready && !doHalt);
         ParsedAddress512 pa = parseAddress512(e.addr);
         reqToAnswer <= pa;
         if (cacheTags[pa.index] == pa.tag && cacheStates[pa.index] != Invalid) begin
@@ -99,18 +103,77 @@ module mkCache(Cache512);
         end else begin missReq <= e; mshr[1] <= StartMiss; end
     endmethod
 
-    method ActionValue#(MainMemResp) getToProc();
+    method ActionValue#(MainMemResp) getToProc() if(!doHalt);
         let x = hitQ.first(); hitQ.deq();
         return x;
     endmethod
 
-    method ActionValue#(MainMemReq) getToMem();
+    method ActionValue#(MainMemReq) getToMem() if(!doHalt);
         let x = memReqQ.first(); memReqQ.deq();
         return x;
     endmethod
 
-    method Action putFromMem(MainMemResp e);
+    method Action putFromMem(MainMemResp e) if(!doHalt);
         memRespQ.enq(e);
+    endmethod
+
+    rule waitCacheOp if(doHalt);
+        let line <- cacheData.portA.response.get(); 
+        let slice <- sliceFIFO.first();
+        SlicedData slices = unpack(line);
+        sliceFIFO.deq();
+        responseFIFO.enq(slices[slice]);
+    endrule
+
+    method Action halt if(!doHalt);
+        doHalt <= True;
+    endmethod
+
+    method Action halted if(doHalt);
+    endmethod  
+
+    method Action restart if(doHalt);
+        doHalt <= False;
+    endmethod
+
+    method Action restarted if(!doHalt);
+    endmethod    
+
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(doHalt);
+        let field = addr[9:8];
+        let address = addr[7:0];
+        let slice = addr[12:10];
+        if(operation == Read) begin
+            case(field)
+                2'b00: responseFIFO.enq(zeroExtend(cacheTags[address]));
+                2'b01: responseFIFO.enq(zeroExtend(cacheStates[address]));
+                2'b10: begin 
+                    cacheData.portA.request.put(BRAMRequestBE{writeen : 0, responseOnWrite : False, address : address, datain : ?});
+                    sliceFIFO.enq(slice);
+                end
+            endcase
+        end else begin
+            case(field)
+                2'b00: begin 
+                    cacheTags[address] <= data[valueOf(LineTag512)-1:0];
+                    responseFIFO.enq(data);
+                end
+                2'b01: begin 
+                    cacheStates[address] <= data[valueOf(LineState)-1:0];
+                    responseFIFO.enq(data);
+                end
+                2'b10: begin
+                    cacheData.portA.request.put(BRAMRequestBE{writeen : writeSliceOffset(slice), responseOnWrite : True, address : address, datain : data});
+                    sliceFIFO.enq(slice);
+                end
+            endcase
+        end
+    endmethod
+
+    method ActionValue#(ExchangeData) response(ComponentdId id) if(doHalt);
+        let out = responseFIFO.first();
+        responseFIFO.deq();
+        return zeroExtend(out);
     endmethod
 
 endmodule

@@ -29,6 +29,7 @@ interface CoreIndication;
     method Action restarted;
     method Action canonicalized;
     method Action response(ExchangeData data);
+    method Action requestMMIO(Bit#(33) data);
 endinterface
 
 interface CoreRequest;
@@ -54,6 +55,11 @@ module mkF2H#(CoreIndication indication)(Glue);
     CoreInterface core <- mkCore;
 
     // INDICATION
+
+    rule waitMMIO;
+        let mmio <- core.getMMIO();
+        indication.requestMMIO(mmio);
+    endrule
 
     rule waitResponse;
         let component = inFlight.first(); inFlight.deq();
@@ -83,7 +89,7 @@ module mkF2H#(CoreIndication indication)(Glue);
 
     interface CoreRequest request;
 
-        method Action restart if(!inFlight.notEmpty);
+        method Action restart;
             core.restart();
             doRestart <= True;
         endmethod
