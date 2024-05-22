@@ -17,6 +17,7 @@ interface CoreInterface;
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
     method ActionValue#(ExchangeData) response(ComponentdId id);
     method ActionValue#(Bit#(33)) getMMIO;
+    method ActionValue#(Bool) getHalt;
 endinterface
 
 (* synthesize *)
@@ -33,6 +34,7 @@ module mkCore(CoreInterface);
 
     Reg#(Bool) doCanonicalize <- mkReg(False);
     FIFO#(Bit#(33)) mmio2host <- mkFIFO;
+    FIFO#(Bool) haltFIFO <- mkFIFO;
 
     rule tic;
 	    cycle_count <= cycle_count + 1;
@@ -171,6 +173,11 @@ module mkCore(CoreInterface);
     method ActionValue#(Bit#(33)) getMMIO;
         mmio2host.deq();
         return mmio2host.first();
+    endmethod
+
+    method ActionValue#(Bool) getHalt;
+        haltFIFO.deq();
+        return haltFIFO.first();
     endmethod
     
 endmodule

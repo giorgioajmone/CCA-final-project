@@ -30,6 +30,7 @@ interface CoreIndication;
     method Action canonicalized;
     method Action response(ExchangeData data);
     method Action requestMMIO(Bit#(33) data);
+    method Action requestMMIO(Bool data);
 endinterface
 
 interface CoreRequest;
@@ -59,6 +60,11 @@ module mkF2H#(CoreIndication indication)(Glue);
     rule waitMMIO;
         let mmio <- core.getMMIO();
         indication.requestMMIO(mmio);
+    endrule
+
+    rule waitHaltRequest;
+        let haltRequest <- core.getHalt();
+        indication.requestHalt(haltRequest);
     endrule
 
     rule waitResponse;

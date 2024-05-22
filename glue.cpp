@@ -54,6 +54,10 @@ public:
             fprintf(stderr, "%c", static_cast<int>((data & 0xFF)+'0'));
     }
 
+    virtual void requestHalt(uint64_t data){
+        //TO DO when the fpga wants to halt
+    }
+
     CoreIndication(unsigned int id) : CoreIndicationWrapper(id) {}
 };
 
