@@ -379,14 +379,14 @@ module mkPipelined(RVIfc);
             case(address)
                 5'b00000: responseFIFO.enq(pc);
                 default: begin 
-                    //let x <- rf.read(address);
+                    let x <- rf.read(address);
                     responseFIFO.enq(pc);
                 end
             endcase
         end else begin
             case(address)
                 5'b00000: pc <= writeData;
-                //default: rf.write(address, writeData);
+                default: rf.write(address, writeData);
             endcase
             responseFIFO.enq(writeData);
         end

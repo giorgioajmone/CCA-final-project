@@ -3,10 +3,9 @@
 Method schedule
 ---------------
 Method: putFromProc
-Ready signal: (! cache_cache_0_canonicalized) &&
-	      (! cache_cache_1_canonicalized) &&
-	      (cache_mshr[3:1] == 3'd0) && (! cache_is_canonicalizing) &&
-	      (! cache_is_canonicalized) &&
+Ready signal: (! cache_cache_0_is_halted) &&
+	      (! cache_cache_1_is_halted) &&
+	      (cache_mshr[3:1] == 3'd0) && (! cache_is_halted) &&
 	      (cache_replacementMetadata_serverAdapter_cnt .< 3'd3) &&
 	      (cache_cache_0_tagCache_serverAdapterA_cnt .< 3'd3) &&
 	      (cache_cache_0_statusCache_serverAdapterA_cnt .< 3'd3) &&
@@ -24,55 +23,38 @@ Ready signal: (! cache_cache_0_canonicalized) &&
 	      (cache_cache_0_dataCache_11_serverAdapterA_cnt .< 3'd3) &&
 	      (cache_cache_0_dataCache_12_serverAdapterA_cnt .< 3'd3) &&
 	      (b__h43991(...) .< 3'd3) &&
-	      cache_cache_0_dataCache_14_serverAdapterA_cnt__ETC___d4101(...) &&
-	      cache_cache_0_dataCache_15_serverAdapterA_cnt__ETC___d4142(...)
+	      cache_cache_0_dataCache_14_serverAdapterA_cnt__ETC___d4098(...) &&
+	      cache_cache_0_dataCache_15_serverAdapterA_cnt__ETC___d4139(...)
 Conflict-free: getToProc,
 	       getToMem,
 	       restart,
 	       halted,
 	       restarted,
-	       canonicalized,
 	       request,
 	       response
-Sequenced before: halt, canonicalize
+Sequenced before: halt
 Conflicts: putFromProc, putFromMem
  
 Method: getToProc
-Ready signal: (! cache_is_canonicalized) &&
-	      cache_respondFifo_rv.port1__read[32]
-Conflict-free: putFromProc,
-	       getToMem,
-	       halt,
-	       canonicalize,
-	       restart,
-	       halted,
-	       restarted,
-	       canonicalized,
-	       request
+Ready signal: (! cache_is_halted) && cache_respondFifo_rv.port1__read[32]
+Conflict-free: putFromProc, getToMem, restart, halted, restarted, request
+Sequenced before: halt
 Sequenced after (restricted): putFromMem, response
 Conflicts: getToProc
  
 Method: getToMem
-Ready signal: (! cache_is_canonicalized) &&
-	      cache_reqToMemFifo_rv.port1__read[602]
-Conflict-free: putFromProc,
-	       getToProc,
-	       halt,
-	       canonicalize,
-	       restart,
-	       halted,
-	       restarted,
-	       canonicalized,
-	       request
+Ready signal: (! cache_is_halted) && cache_reqToMemFifo_rv.port1__read[602]
+Conflict-free: putFromProc, getToProc, restart, halted, restarted, request
+Sequenced before: halt
 Sequenced after (restricted): putFromMem, response
 Conflicts: getToMem
  
 Method: putFromMem
-Ready signal: (! cache_is_canonicalized) &&
+Ready signal: (! cache_is_halted) &&
 	      ((cache_mshr[3:1] == 3'd2) ||
 	       ((! cache_respondFifo_rv.port0__read[32]) &&
 		case cache_mshr[0] of
-		1'd0 -> (! cache_cache_0_canonicalized) &&
+		1'd0 -> (! cache_cache_0_is_halted) &&
 			(cache_cache_0_statusCache_serverAdapterB_cnt .<
 			 3'd3) &&
 			(cache_cache_0_dataCache_0_serverAdapterB_cnt .<
@@ -102,9 +84,9 @@ Ready signal: (! cache_is_canonicalized) &&
 			(cache_cache_0_dataCache_12_serverAdapterB_cnt .<
 			 3'd3) &&
 			(b__h45329(...) .< 3'd3) &&
-			cache_cache_0_dataCache_14_serverAdapterB_cnt__ETC___d3668(...) &&
-			cache_cache_0_dataCache_15_serverAdapterB_cnt__ETC___d4279(...)
-		1'd1 -> (! cache_cache_1_canonicalized) &&
+			cache_cache_0_dataCache_14_serverAdapterB_cnt__ETC___d3669(...) &&
+			cache_cache_0_dataCache_15_serverAdapterB_cnt__ETC___d4276(...)
+		1'd1 -> (! cache_cache_1_is_halted) &&
 			(cache_cache_1_statusCache_serverAdapterB_cnt .<
 			 3'd3) &&
 			(cache_cache_1_dataCache_0_serverAdapterB_cnt .<
@@ -133,108 +115,68 @@ Ready signal: (! cache_is_canonicalized) &&
 			 3'd3) &&
 			(cache_cache_1_dataCache_12_serverAdapterB_cnt .<
 			 3'd3) &&
-			(b__h97148(...) .< 3'd3) &&
-			cache_cache_1_dataCache_14_serverAdapterB_cnt__ETC___d3704(...) &&
-			cache_cache_1_dataCache_15_serverAdapterB_cnt__ETC___d4298(...)
+			(b__h97149(...) .< 3'd3) &&
+			cache_cache_1_dataCache_14_serverAdapterB_cnt__ETC___d3705(...) &&
+			cache_cache_1_dataCache_15_serverAdapterB_cnt__ETC___d4295(...)
 		_ -> 1'd1))
-Conflict-free: restart, halted, restarted, canonicalized, request, response
-Sequenced before (restricted): getToProc, getToMem, halt, canonicalize
+Conflict-free: restart, halted, restarted, request, response
+Sequenced before (restricted): getToProc, getToMem, halt
 Conflicts: putFromProc, putFromMem
  
 Method: halt
-Ready signal: (! cache_is_canonicalizing) && (! cache_is_canonicalized)
-Conflict-free: getToProc,
-	       getToMem,
-	       restart,
-	       halted,
-	       restarted,
-	       canonicalized,
-	       request,
-	       response
-Sequenced after: putFromProc
-Sequenced after (restricted): putFromMem
-Conflicts: halt, canonicalize
- 
-Method: canonicalize
-Ready signal: (! cache_is_canonicalizing) && (! cache_is_canonicalized)
-Conflict-free: getToProc,
-	       getToMem,
-	       restart,
-	       halted,
-	       restarted,
-	       canonicalized,
-	       request,
-	       response
-Sequenced after: putFromProc
-Sequenced after (restricted): putFromMem
-Conflicts: halt, canonicalize
+Ready signal: ! cache_is_halted
+Conflict-free: restart, halted, request
+Sequenced after: putFromProc, getToProc, getToMem, restarted
+Sequenced after (restricted): putFromMem, response
+Conflicts: halt
  
 Method: restart
-Ready signal: cache_is_canonicalized &&
-	      (! cache_request_fifo_rv.port1__read[2])
+Ready signal: cache_is_halted &&
+	      cache_cache_0_is_halted && cache_cache_1_is_halted
 Conflict-free: putFromProc,
 	       getToProc,
 	       getToMem,
 	       putFromMem,
 	       halt,
-	       canonicalize,
 	       restarted,
 	       response
-Sequenced after: halted, canonicalized
-Sequenced after (restricted): request
+Sequenced after: halted, request
 Conflicts: restart
  
 Method: halted
-Ready signal: cache_is_canonicalized || cache_is_canonicalizing
+Ready signal: cache_is_halted &&
+	      cache_cache_0_is_halted && cache_cache_1_is_halted
 Conflict-free: putFromProc,
 	       getToProc,
 	       getToMem,
 	       putFromMem,
 	       halt,
-	       canonicalize,
 	       halted,
 	       restarted,
-	       canonicalized,
 	       request,
 	       response
 Sequenced before: restart
  
 Method: restarted
-Ready signal: ! cache_is_canonicalized
+Ready signal: (! cache_is_halted) &&
+	      (! cache_cache_0_is_halted) && (! cache_cache_1_is_halted)
 Conflict-free: putFromProc,
 	       getToProc,
 	       getToMem,
 	       putFromMem,
-	       halt,
-	       canonicalize,
 	       restart,
 	       halted,
 	       restarted,
-	       canonicalized,
 	       request,
 	       response
- 
-Method: canonicalized
-Ready signal: cache_is_canonicalized
-Conflict-free: putFromProc,
-	       getToProc,
-	       getToMem,
-	       putFromMem,
-	       halt,
-	       canonicalize,
-	       halted,
-	       restarted,
-	       canonicalized,
-	       request,
-	       response
-Sequenced before: restart
+Sequenced before: halt
  
 Method: request
-Ready signal: cache_is_canonicalized &&
-	      cache_cache_0_canonicalized &&
+Ready signal: cache_is_halted &&
+	      cache_cache_0_is_halted &&
 	      (cache_cache_0_tagCache_serverAdapterA_cnt .< 3'd3) &&
 	      (cache_cache_0_statusCache_serverAdapterA_cnt .< 3'd3) &&
-	      cache_cache_1_canonicalized &&
+	      cache_cache_1_is_halted &&
 	      (cache_cache_1_tagCache_serverAdapterA_cnt .< 3'd3) &&
 	      (cache_cache_1_statusCache_serverAdapterA_cnt .< 3'd3) &&
 	      (cache_cache_0_dataCache_0_serverAdapterA_cnt .< 3'd3) &&
@@ -266,7 +208,7 @@ Ready signal: cache_is_canonicalized &&
 	      (cache_cache_1_dataCache_11_serverAdapterA_cnt .< 3'd3) &&
 	      (cache_cache_1_dataCache_12_serverAdapterA_cnt .< 3'd3) &&
 	      (cache_cache_1_dataCache_13_serverAdapterA_cnt .< 3'd3) &&
-	      (b__h98639(...) .< 3'd3) && (b__h101468(...) .< 3'd3) &&
+	      (b__h98640(...) .< 3'd3) && (b__h101469(...) .< 3'd3) &&
 	      (cache_replacementMetadata_serverAdapter_cnt .< 3'd3) &&
 	      (! cache_read_lru_token_rv.port0__read[1]) &&
 	      (! cache_request_fifo_rv.port0__read[2]) &&
@@ -280,11 +222,10 @@ Conflict-free: putFromProc,
 	       getToMem,
 	       putFromMem,
 	       halt,
-	       canonicalize,
 	       halted,
-	       restarted,
-	       canonicalized
-Sequenced before (restricted): restart, response
+	       restarted
+Sequenced before: restart
+Sequenced before (restricted): response
 Conflicts: request
  
 Method: response
@@ -350,8 +291,8 @@ Ready signal: cache_request_fifo_rv.port1__read[2] &&
 				cache_cache_0_dataCache_11_serverAdapterA_outData_enqw.whas) &&
 			       (cache_cache_0_dataCache_12_serverAdapterA_outD_ETC___d1375(...) ||
 				cache_cache_0_dataCache_12_serverAdapterA_outD_ETC___d1372(...)) &&
-			       cache_cache_0_dataCache_13_serverAdapterA_outD_ETC___d3614(...) &&
-			       cache_cache_0_dataCache_14_serverAdapterA_outD_ETC___d4500(...)
+			       cache_cache_0_dataCache_13_serverAdapterA_outD_ETC___d3615(...) &&
+			       cache_cache_0_dataCache_14_serverAdapterA_outD_ETC___d4498(...)
 		       6'd1 -> (cache_cache_1_dataCache_0_serverAdapterA_outData_ff.i_notEmpty ||
 				cache_cache_1_dataCache_0_serverAdapterA_outData_enqw.whas) &&
 			       (cache_cache_1_dataCache_1_serverAdapterA_outData_ff.i_notEmpty ||
@@ -378,8 +319,8 @@ Ready signal: cache_request_fifo_rv.port1__read[2] &&
 				cache_cache_1_dataCache_11_serverAdapterA_outData_enqw.whas) &&
 			       (cache_cache_1_dataCache_12_serverAdapterA_outD_ETC___d3137(...) ||
 				cache_cache_1_dataCache_12_serverAdapterA_outD_ETC___d3134(...)) &&
-			       cache_cache_1_dataCache_13_serverAdapterA_outD_ETC___d3631(...) &&
-			       cache_cache_1_dataCache_14_serverAdapterA_outD_ETC___d4517(...)
+			       cache_cache_1_dataCache_13_serverAdapterA_outD_ETC___d3632(...) &&
+			       cache_cache_1_dataCache_14_serverAdapterA_outD_ETC___d4515(...)
 		       _ -> 1'd1))) &&
 		  (((cache_request_fifo_rv.port1__read[2]
 		     ? cache_request_fifo_rv.port1__read[1:0]
@@ -521,8 +462,8 @@ Ready signal: cache_request_fifo_rv.port1__read[2] &&
 			       (cache_cache_1_dataCache_10_serverAdapterA_outData_ff.i_notEmpty ||
 				cache_cache_1_dataCache_10_serverAdapterA_outData_enqw.whas)
 		       _ -> 1'd1 &&
-		       case cache_read_data_token_rv_port1__read____d4447(...)[6]
-			    ? cache_read_data_token_rv_port1__read____d4447(...)[5:0]
+		       case cache_read_data_token_rv_port1__read____d4445(...)[6]
+			    ? cache_read_data_token_rv_port1__read____d4445(...)[5:0]
 			    : (_ :: Bit 6) of
 		       6'd0 -> cache_cache_0_dataCache_11_serverAdapterA_outData_beforeDeq.read &&
 			       (cache_cache_0_dataCache_11_serverAdapterA_outD_ETC___d1277(...) ||
@@ -531,29 +472,22 @@ Ready signal: cache_request_fifo_rv.port1__read[2] &&
 			       (cache_cache_1_dataCache_11_serverAdapterA_outD_ETC___d3039(...) ||
 				cache_cache_1_dataCache_11_serverAdapterA_outD_ETC___d3036(...))
 		       _ -> 1'd1 &&
-		       case cache_read_data_token_rv_port1__read__447_BIT_6___d4448(...)
-			    ? x__h138272(...)
+		       case cache_read_data_token_rv_port1__read__445_BIT_6___d4446(...)
+			    ? x__h138844(...)
 			    : (_ :: Bit 6) of
 		       6'd0 -> cache_cache_0_dataCache_12_serverAdapterA_outD_ETC___d1415(...) &&
-			       cache_cache_0_dataCache_12_serverAdapterA_outD_ETC___d3613(...)
+			       cache_cache_0_dataCache_12_serverAdapterA_outD_ETC___d3614(...)
 		       6'd1 -> cache_cache_1_dataCache_12_serverAdapterA_outD_ETC___d3177(...) &&
-			       cache_cache_1_dataCache_12_serverAdapterA_outD_ETC___d3630(...)
+			       cache_cache_1_dataCache_12_serverAdapterA_outD_ETC___d3631(...)
 		       _ -> 1'd1 &&
-		       case way__h138147(...) of
-		       6'd0 -> cache_cache_0_dataCache_13_serverAdapterA_outD_ETC___d4581(...)
-		       6'd1 -> cache_cache_1_dataCache_13_serverAdapterA_outD_ETC___d4582(...)
+		       case way__h138719(...) of
+		       6'd0 -> cache_cache_0_dataCache_13_serverAdapterA_outD_ETC___d4579(...)
+		       6'd1 -> cache_cache_1_dataCache_13_serverAdapterA_outD_ETC___d4580(...)
 		       _ -> 1'd1 &&
-		       CASE_IF_cache_read_data_token_rv_port1__read___ETC___d4586(...) &&
-		       CASE_IF_cache_read_data_token_rv_port1__read___ETC___d4589(...))))))
-Conflict-free: putFromProc,
-	       putFromMem,
-	       halt,
-	       canonicalize,
-	       restart,
-	       halted,
-	       restarted,
-	       canonicalized
-Sequenced before (restricted): getToProc, getToMem
+		       CASE_IF_cache_read_data_token_rv_port1__read___ETC___d4584(...) &&
+		       CASE_IF_cache_read_data_token_rv_port1__read___ETC___d4587(...))))))
+Conflict-free: putFromProc, putFromMem, restart, halted, restarted
+Sequenced before (restricted): getToProc, getToMem, halt
 Sequenced after (restricted): request
 Conflicts: response
  
@@ -3339,12 +3273,13 @@ Blocking rules: (none)
  
 Rule: cache_startFill
 Predicate: (! cache_reqToMemFifo_rv.port0__read[602]) &&
-	   (cache_mshr[3:1] == 3'd3) && (! cache_is_canonicalizing) &&
-	   (! cache_is_canonicalized)
+	   (cache_mshr[3:1] == 3'd3) && (! cache_is_halted)
 Blocking rules: putFromMem
  
 Rule: cache_getData
-Predicate: cache_cache_0_statusCache_serverAdapterA_outData_beforeDeq.read &&
+Predicate: (! cache_cache_0_is_halted) &&
+	   (! cache_cache_1_is_halted) &&
+	   cache_cache_0_statusCache_serverAdapterA_outData_beforeDeq.read &&
 	   (cache_cache_0_statusCache_serverAdapterA_outData_ff.i_notEmpty ||
 	    cache_cache_0_statusCache_serverAdapterA_outData_enqw.whas) &&
 	   cache_cache_1_statusCache_serverAdapterA_outData_beforeDeq.read &&
@@ -3377,32 +3312,21 @@ Predicate: cache_cache_0_statusCache_serverAdapterA_outData_beforeDeq.read &&
 	    cache_cache_0_dataCache_9_serverAdapterA_outData_enqw.whas) &&
 	   (cache_cache_0_dataCache_10_serverAdapterA_outData_ff.i_notEmpty ||
 	    cache_cache_0_dataCache_10_serverAdapterA_outData_enqw.whas) &&
-	   (cache_cache_0_dataCache_11_serverAdapterA_outData_ff.i_notEmpty ||
-	    cache_cache_0_dataCache_11_serverAdapterA_outData_enqw.whas) &&
-	   (cache_cache_0_dataCache_12_serverAdapterA_outData_ff.i_notEmpty ||
-	    cache_cache_0_dataCache_12_serverAdapterA_outData_enqw.whas) &&
-	   (cache_cache_0_dataCache_13_serverAdapterA_outD_ETC___d1473(...) ||
-	    cache_cache_0_dataCache_13_serverAdapterA_outD_ETC___d1470(...)) &&
-	   cache_cache_0_dataCache_14_serverAdapterA_outD_ETC___d3615(...) &&
-	   cache_cache_0_dataCache_15_serverAdapterA_outD_ETC___d3830(...) &&
-	   (cache_mshr[3:1] == 3'd1) && (! cache_is_canonicalized)
+	   (cache_cache_0_dataCache_11_serverAdapterA_outD_ETC___d1277(...) ||
+	    cache_cache_0_dataCache_11_serverAdapterA_outD_ETC___d1274(...)) &&
+	   cache_cache_0_dataCache_12_serverAdapterA_outD_ETC___d3614(...) &&
+	   cache_cache_0_dataCache_13_serverAdapterA_outD_ETC___d3833(...) &&
+	   (cache_mshr[3:1] == 3'd1) && (! cache_is_halted)
 Blocking rules: response, putFromMem
- 
-Rule: cache_canonicalization_detection
-Predicate: cache_is_canonicalizing && (cache_mshr[3:1] == 3'd0)
-Blocking rules: restart, putFromMem
  
 Logical execution order: putFromProc,
 			 putFromMem,
 			 halted,
 			 restarted,
-			 canonicalized,
 			 request,
 			 restart,
 			 cache_clock,
 			 cache_startFill,
-			 halt,
-			 canonicalize,
 			 cache_cache_0_tagCache_serverAdapterA_stageReadResponseAlways,
 			 cache_cache_0_tagCache_serverAdapterA_overRun,
 			 cache_cache_0_tagCache_serverAdapterA_moveToOutFIFO,
@@ -3703,7 +3627,7 @@ Logical execution order: putFromProc,
 			 cache_getData,
 			 getToProc,
 			 getToMem,
-			 cache_canonicalization_detection,
+			 halt,
 			 cache_cache_0_tagCache_serverAdapterA_outData_enqueue,
 			 cache_cache_0_tagCache_serverAdapterA_outData_dequeue,
 			 cache_cache_0_tagCache_serverAdapterA_cnt_finalAdd,

@@ -193,16 +193,16 @@ static void deserializeCache(const json& cache, uint8_t id) {
             for (const auto& value : data) {
                 data_values.push_back(value);
             }
-            uint512_t data = 0;
+            uint512_t dataOut = 0;
 
             for (int i = 7; i >= 0; --i) {
-                data <<= 64;
-                data |= data_values[i];
+                dataOut <<= 64;
+                dataOut |= data_values[i];
             }
 
             // generate the address of updating data.
             uint64_t data_addr = 0x2 | (set << 2) | (way << (2 + log2SetCount));
-            request(WRITE, id, data_addr, data);
+            request(WRITE, id, data_addr, dataOut);
             
         }
     }
@@ -244,18 +244,22 @@ static void exportSnapshot(std::ostream &s){
 
     //PC
     request(READ, CORE_ID, 0, 0);
-    snapshot["PC"] = (uint64_t)receivedData;
+    snapshot["PC"] = static_cast<uint64_t>(receivedData);
 
     //RF
     for(uint64_t i = 1; i < RF_SIZE; i++){
-        request(READ, REGISTER_FILE_ID, (uint64_t) i, 0);
-        snapshot["RegisterFile"].emplace_back((uint64_t)receivedData);
+        request(READ, REGISTER_FILE_ID, i, 0);
+        snapshot["RegisterFile"].emplace_back(static_cast<uint64_t>(receivedData));
     }
 
     //MAIN MEMORY
     for(uint64_t i = 0; i < MAIN_MEM_SIZE; i++){
-        request(READ, MAIN_MEM_ID, (uint64_t) i, 0);
-        snapshot["MainMem"].emplace_back(receivedData);
+        request(READ, MAIN_MEM_ID, i, 0);
+        uint512_t data = receivedData;
+        for (int j = 0; j < 8; j++) {
+            snapshot["MainMem"][i].emplace_back(static_cast<uint64_t>(data));
+            data >>= 64;
+        }
     }
 
     //CACHE
@@ -283,14 +287,22 @@ static void importSnapshot(std::istream &s){
 
     //RF
     for(uint64_t i = 1; i < RF_SIZE; i++){
-        request(WRITE, REGISTER_FILE_ID, (uint64_t) i, 0);
-        snapshot["RegisterFile"].emplace_back((uint64_t)receivedData);
+        request(WRITE, REGISTER_FILE_ID, i, (uint512_t) ((uint64_t)snapshot["RegisterFile"][i]));
     }
 
     //MAIN MEMORY
     for(uint64_t i = 0; i < MAIN_MEM_SIZE; i++){
-        request(WRITE, MAIN_MEM_ID, (uint64_t) i, 0);
-        snapshot["MainMem"].emplace_back(receivedData);
+        auto data = snapshot["MainMem"][i];
+        std::vector<uint64_t> data_values;
+        for (const auto& value : data) {
+            data_values.push_back(value);
+        }
+        uint512_t dataOut = 0;
+        for (int i = 7; i >= 0; --i) {
+            dataOut <<= 64;
+            dataOut |= data_values[i];
+        }
+        request(WRITE, MAIN_MEM_ID, i, dataOut);
     }
 
     // import L1i, L1d, L2 cache
@@ -323,59 +335,59 @@ int main(int argc, const char **argv)
 /* // L1I DIRECT MAPPED CACHE FIELD = 0
     for(uint64_t address = 0; address < L1_SIZE; address++){
         request(READ, L1I_ID, 0 << 7 | address, 0);
-        snapshot["L1i"]["Tags"].emplace_back(receivedData);
+        snapshot["L1i"]["Tags"].emplace_back(static_cast<uint64_t>(receivedData));
     }
 
     // L1I DIRECT MAPPED CACHE FIELD = 1
     for(uint64_t address = 0; address < L1_SIZE; address++){
         request(READ, L1I_ID, 1 << 7 | address, 0);
-        snapshot["L1i"]["State"].emplace_back(receivedData);
+        snapshot["L1i"]["State"].emplace_back(static_cast<uint64_t>(receivedData));
     }
 
     // L1I DIRECT MAPPED CACHE FIELD = 2
     for(uint64_t address = 0; address < L1_SIZE; address++){
         for(uint64_t slice = 0; slice < 8; slice++){
             request(READ, L1I_ID, slice << 9 | 2 << 7 | address, 0);
-            snapshot["L1i"]["Data"][address].emplace_back(receivedData);
+            snapshot["L1i"]["Data"][address].emplace_back(static_cast<uint64_t>(receivedData));
         }
     }
 
     // L1D DIRECT MAPPED CACHE FIELD = 0
     for(uint64_t address = 0; address < L1_SIZE; address++){
         request(READ, L1D_ID, 0 << 7 | address, 0);
-        snapshot["L1d"]["Tags"].emplace_back(receivedData);
+        snapshot["L1d"]["Tags"].emplace_back(static_cast<uint64_t>(receivedData));
     }
 
     // L1D DIRECT MAPPED CACHE FIELD = 1
     for(uint64_t address = 0; address < L1_SIZE; address++){
         request(READ, L1D_ID, 1 << 7 | address, 0);
-        snapshot["L1d"]["State"].emplace_back(receivedData);
+        snapshot["L1d"]["State"].emplace_back(static_cast<uint64_t>(receivedData));
     }
 
     // L1D DIRECT MAPPED CACHE FIELD = 2
     for(uint64_t address = 0; address < L1_SIZE; address++){
         for(uint64_t slice = 0; slice < 8; slice++){
             request(READ, L1D_ID, slice << 9 | 2 << 7 | address, 0);
-            snapshot["L1d"]["Data"][address].emplace_back(receivedData);
+            snapshot["L1d"]["Data"][address].emplace_back(static_cast<uint64_t>(receivedData));
         }
     }
 
     // L2 DIRECT MAPPED CACHE FIELD = 0
     for(uint64_t address = 0; address < L2_SIZE; address++){
         request(READ, L2_ID, 0 << 8 | address, 0);
-        snapshot["L2"]["Tags"].emplace_back(receivedData);
+        snapshot["L2"]["Tags"].emplace_back(static_cast<uint64_t>(receivedData));
     }
 
     // L2 DIRECT MAPPED CACHE FIELD = 1
     for(uint64_t address = 0; address < L2_SIZE; address++){
         request(READ, L2_ID, 1 << 8 | address, 0);
-        snapshot["L2"]["State"].emplace_back(receivedData);
+        snapshot["L2"]["State"].emplace_back(static_cast<uint64_t>(receivedData));
     }
 
     // L2 DIRECT MAPPED CACHE FIELD = 2
     for(uint64_t address = 0; address < L2_SIZE; address++){
         for(uint64_t slice = 0; slice < 8; slice++){
             request(READ, L2_ID, slice << 10 | 2 << 8 | address, 0);
-            snapshot["L2"]["Data"][address].emplace_back(receivedData);
+            snapshot["L2"]["Data"][address].emplace_back(static_cast<uint64_t>(receivedData));
         }
     } */

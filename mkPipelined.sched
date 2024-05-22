@@ -108,15 +108,15 @@ Conflict-free: getIReq,
 	       canonicalize,
 	       halted,
 	       canonicalized
-Sequenced after: restarted, request, response
-Sequenced after (restricted): getIResp, getDResp, getMMIOResp
+Sequenced after: restarted, response
+Sequenced after (restricted): getIResp, getDResp, getMMIOResp, request
 Conflicts: halt, restart
  
 Method: canonicalize
 Ready signal: (! doCanonicalize) && (! isCanonicalized)
 Conflict-free: getIReq, getDReq, getMMIOReq, halt, halted, canonicalized
-Sequenced after: restarted, request, response
-Sequenced after (restricted): getIResp, getDResp, getMMIOResp
+Sequenced after: restarted, response
+Sequenced after (restricted): getIResp, getDResp, getMMIOResp, request
 Conflicts: canonicalize, restart
  
 Method: restart
@@ -193,8 +193,8 @@ Conflict-free: getIReq,
 	       halted,
 	       restarted,
 	       canonicalized
-Sequenced before: halt, canonicalize, restart
-Sequenced before (restricted): response
+Sequenced before: restart
+Sequenced before (restricted): halt, canonicalize, response
 Conflicts: request
  
 Method: response

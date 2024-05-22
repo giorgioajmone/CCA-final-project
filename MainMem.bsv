@@ -61,21 +61,21 @@ module mkMainMem(MainMem);
     DelayLine#(20, MainMemResp) dl <- mkDL(); // Delay by 20 cycles
 
     // INSTRUMENTATION
-    Reg#(Bool) is_halted <- mkReg(False);
+    Reg#(Bool) doHalt <- mkReg(False);
 
     FIFO#(ExchangeData) responseFIFO <- mkBypassFIFO;
 
-    rule deq if(!is_halted);
+    rule deq if(!doHalt);
         let r <- bram.portA.response.get();
         dl.put(r);
     endrule    
 
-    rule waitResponse if(!is_halted);
+    rule waitResponse if(doHalt);
         let r <- bram.portA.response.get();
         responseFIFO.enq(r);
     endrule 
 
-    method Action put(MainMemReq req) if (!is_halted);
+    method Action put(MainMemReq req) if (!doHalt);
         bram.portA.request.put(BRAMRequest{
                     write: unpack(req.write),
                     responseOnWrite: True,
@@ -83,28 +83,28 @@ module mkMainMem(MainMem);
                     datain: req.data});
     endmethod
 
-    method ActionValue#(MainMemResp) get() if (!is_halted);
+    method ActionValue#(MainMemResp) get() if (!doHalt);
         let r <- dl.get();
         return r;
     endmethod
 
     // INSTRUMENTATION 
 
-    method Action halt;
-        is_halted <= True;
+    method Action halt if(!doHalt);
+        doHalt <= True;
     endmethod
 
-    method Action halted if(is_halted);
+    method Action halted if(doHalt);
     endmethod
 
-    method Action restart if(is_halted);
-        is_halted <= False;
+    method Action restart if(doHalt);
+        doHalt <= False;
     endmethod
 
-    method Action restarted if(!is_halted);
+    method Action restarted if(!doHalt);
     endmethod      
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(is_halted);
+    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(doHalt);
         let address = addr[valueOf(LineAddrLength)-1:0];
         if(operation == Read) begin
             bram.portA.request.put(BRAMRequest{write: unpack(0), responseOnWrite: True, address: address, datain: data});
@@ -117,5 +117,6 @@ module mkMainMem(MainMem);
         responseFIFO.deq();
         return responseFIFO.first();
     endmethod
+    
 endmodule
 
