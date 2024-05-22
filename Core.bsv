@@ -98,7 +98,7 @@ module mkCore(CoreInterface);
                     $fdisplay(stderr, "  [0;31mFAIL[0m (%0d)", req.data);
                 end
                 $fflush(stderr);
-                $finish;
+                haltFIFO.enq(True);
             end
         end
         mmioreq.enq(req);
