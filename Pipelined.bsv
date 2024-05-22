@@ -27,8 +27,8 @@ interface RVIfc;
     method Action halted;
     method Action restarted;
     method Action canonicalized;
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
-    method ActionValue#(ExchangeData) response(ComponentdId id);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data);
+    method ActionValue#(ExchangeData) response(ComponentId id);
 endinterface
 
 typedef struct { Bool isUnsigned; Bit#(2) size; Bit#(2) offset; Bool mmio; } MemBusiness deriving (Eq, FShow, Bits);
@@ -372,10 +372,10 @@ module mkPipelined(RVIfc);
     method Action restarted if(!doHalt && !doCanonicalize && !isCanonicalized);
     endmethod    
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if((doHalt && !doCanonicalize) || isCanonicalized);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data) if((doHalt && !doCanonicalize) || isCanonicalized);
         let address = addr[4:0];
         let writeData = data[31:0];
-        if(operation == Read) begin
+        if(operation == 0) begin
             case(address)
                 5'b00000: responseFIFO.enq(pc);
                 default: begin 
@@ -392,7 +392,7 @@ module mkPipelined(RVIfc);
         end
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentdId id) if((doHalt && !doCanonicalize) || isCanonicalized);
+    method ActionValue#(ExchangeData) response(ComponentId id) if((doHalt && !doCanonicalize) || isCanonicalized);
         let out = responseFIFO.first();
         responseFIFO.deq();
         return zeroExtend(out);

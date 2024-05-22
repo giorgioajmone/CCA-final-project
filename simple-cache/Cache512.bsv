@@ -18,8 +18,8 @@ interface Cache512;
     method Action halted;
     method Action restarted;
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
-    method ActionValue#(ExchangeData) response(ComponentdId id);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data);
+    method ActionValue#(ExchangeData) response(ComponentId id);
 endinterface
 
 (* synthesize *)
@@ -139,11 +139,11 @@ module mkCache(Cache512);
     method Action restarted if(!doHalt);
     endmethod    
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(doHalt);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data) if(doHalt);
         let field = addr[9:8];
         let address = addr[7:0];
         let slice = addr[12:10];
-        if(operation == Read) begin
+        if(operation == 0) begin
             case(field)
                 2'b00: responseFIFO.enq(zeroExtend(cacheTags[address]));
                 2'b01: responseFIFO.enq(zeroExtend(cacheStates[address]));
@@ -170,7 +170,7 @@ module mkCache(Cache512);
         end
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentdId id) if(doHalt);
+    method ActionValue#(ExchangeData) response(ComponentId id) if(doHalt);
         let out = responseFIFO.first();
         responseFIFO.deq();
         return zeroExtend(out);

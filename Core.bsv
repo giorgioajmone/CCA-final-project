@@ -14,8 +14,8 @@ interface CoreInterface;
     method Action halted;
     method Action restarted;
     method Action canonicalized;
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
-    method ActionValue#(ExchangeData) response(ComponentdId id);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data);
+    method ActionValue#(ExchangeData) response(ComponentId id);
     method ActionValue#(Bit#(33)) getMMIO;
     method ActionValue#(Bool) getHalt;
 endinterface
@@ -79,15 +79,15 @@ module mkCore(CoreInterface);
             if (req.addr == 'hf000_fff4) begin
                 // Write integer to STDERR
                 mmio2host.enq({1'b1,req.data});
-                $fwrite(stderr, "%0d", req.data);
-                $fflush(stderr);
+                // $fwrite(stderr, "%0d", req.data);
+                // $fflush(stderr);
             end
         end
         if (req.addr ==  'hf000_fff0) begin
             // Writing to STDERR
             mmio2host.enq(zeroExtend(req.data[7:0]));
-            $fwrite(stderr, "%c", req.data[7:0]);
-            $fflush(stderr);
+            // $fwrite(stderr, "%c", req.data[7:0]);
+            // $fflush(stderr);
         end else if (req.addr == 'hf000_fff8) begin
             $display("RAN CYCLES", cycle_count);
             // Exiting Simulation
@@ -96,7 +96,7 @@ module mkCore(CoreInterface);
             end else begin
                 $fdisplay(stderr, "  [0;31mFAIL[0m (%0d)", req.data);
             end
-            $fflush(stderr);
+            // $fflush(stderr);
         end else begin
             haltFIFO.enq(True);
         end
@@ -148,7 +148,7 @@ module mkCore(CoreInterface);
         cache.restarted();
     endmethod
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data);
         case(id)
             0: rv_core.request(operation, 0, addr, data);   // pipeline
             1: cache.request(operation, 0, addr, data);     // l1i
@@ -158,7 +158,7 @@ module mkCore(CoreInterface);
         endcase
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentdId id);
+    method ActionValue#(ExchangeData) response(ComponentId id);
         let data <- case(id)
             0: rv_core.response(0);         // pipeline
             1: cache.response(0);           // l1i

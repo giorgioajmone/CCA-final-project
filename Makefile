@@ -1,26 +1,10 @@
-.DEFAULT_GOAL := all
-BUILD_DIR=build
-BINARY_NAME=F2H
-BSC_FLAGS=--aggressive-conditions  -p +:./cache --show-schedule -vdir $(BUILD_DIR) -bdir $(BUILD_DIR) -simdir $(BUILD_DIR) -o
+CONNECTALDIR?=/home/xusine/EPFL/CS629/connectal
+S2H_INTERFACES = CoreRequest:F2H.request
+H2S_INTERFACES = F2H:CoreIndication
 
-.PHONY: clean all $(BINARY_NAME)
+BSVFILES = SnapshotTypes.bsv # Core.bsv DelayLine.bsv Ehr.bsv MainMem.bsv MemTypes.bsv Pipelined.bsv register_file.bsv RVUtil.bsv SnapshotTypes.bsv ./cache/Cache32.bsv ./cache/Cache32d.bsv ./cache/Cache512.bsv ./cache/CacheInterface.bsv ./cache/CacheUnit.bsv ./cache/GenericCache.bsv 
+CPPFILES= glue.cpp
 
-$(BINARY_NAME):
-	mkdir -p $(BUILD_DIR)
-	bsc $(BSC_FLAGS) $@ -sim -g mk$@ -u $@.bsv
-	bsc $(BSC_FLAGS) $@ -sim -e mk$@
+CONNECTALFLAGS += -D TRACE_PORTAL
 
-clean:
-	rm -rf $(BUILD_DIR)
-	rm -f $(BINARY_NAME)
-	rm -f *.so
-	rm -f *.sched
-
-all: clean $(BINARY_NAME)
-
-submit:
-	make all
-	./test_all_pipelined.sh 2>&1 | tee output_submit.txt 
-	git add -A
-	git commit -am "Save Changes & Submit"
-	git push
+include $(CONNECTALDIR)/Makefile.connectal

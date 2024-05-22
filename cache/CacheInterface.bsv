@@ -23,8 +23,8 @@ interface CacheInterface;
     method Action halted;
     method Action restarted;
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
-    method ActionValue#(ExchangeData) response(ComponentdId id);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data);
+    method ActionValue#(ExchangeData) response(ComponentId id);
 
 endinterface
 
@@ -150,7 +150,7 @@ module mkCacheInterface(CacheInterface);
     endmethod
 
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if (is_halted);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data) if (is_halted);
         case (id)
             0: cacheI.request(operation, id, addr, data);
             1: cacheD.request(operation, id, addr, data);
@@ -160,7 +160,7 @@ module mkCacheInterface(CacheInterface);
         endcase
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentdId id);
+    method ActionValue#(ExchangeData) response(ComponentId id);
         case (id)
             0: begin
                 let data <- cacheI.response(id);

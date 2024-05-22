@@ -28,8 +28,8 @@ interface Cache32d;
     method Action halted;
     method Action restarted;
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
-    method ActionValue#(ExchangeData) response(ComponentdId id);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data);
+    method ActionValue#(ExchangeData) response(ComponentId id);
 endinterface
 
 (* synthesize *)
@@ -72,11 +72,11 @@ module mkCache32d(Cache32d);
         cache.restarted;
     endmethod
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data);
         cache.request(operation, id, addr, data);
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentdId id);
+    method ActionValue#(ExchangeData) response(ComponentId id);
         let data <- cache.response(id);
         return data;
     endmethod

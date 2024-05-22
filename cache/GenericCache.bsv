@@ -22,8 +22,8 @@ interface GenericCache#(numeric type addrcpuBits, numeric type datacpuBits, nume
     method Action halted;
     method Action restarted;
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
-    method ActionValue#(ExchangeData) response(ComponentdId id);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data);
+    method ActionValue#(ExchangeData) response(ComponentId id);
     
 endinterface
 
@@ -279,7 +279,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
     endmethod
 
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if (is_halted);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data) if (is_halted);
         // the address is allocated in the following way:
         // low 2 bits: decide which information to extract:
         // - 00: LRU metadata
@@ -293,7 +293,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         let set_index = addr[2+valueOf(numLogLines)-1:2]; // this is the set index
         let way_index_length = valueOf(TLog#(numWays));
         let way_index = addr[2+valueOf(numLogLines)+way_index_length-1:2+valueOf(numLogLines)]; // this is the way index
-        if (operation == Read) begin
+        if (operation == 0) begin
             case (addr[1:0]) matches
                 2'b00: begin
                     readLRURequest(set_index);
@@ -330,7 +330,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         end
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentdId id);
+    method ActionValue#(ExchangeData) response(ComponentId id);
         let operation = request_fifo.first;
         request_fifo.deq();
         case (operation) matches

@@ -24,30 +24,11 @@ import SpecialFIFOs::*;
 import Core::*;
 import SnapshotTypes::*;
 
-interface CoreIndication;
-    method Action halted;
-    method Action restarted;
-    method Action canonicalized;
-    method Action response(ExchangeData data);
-    method Action requestMMIO(Bit#(33) data);
-    method Action requestMMIO(Bool data);
-endinterface
-
-interface CoreRequest;
-    method Action halt;
-    method Action canonicalize;
-    method Action restart;
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
-endinterface
-
-interface F2H;
-   interface CoreRequest request;
-endinterface
 
 (* synthesize *)
 module mkF2H#(CoreIndication indication)(F2H);
 
-    FIFOF#(ComponentdId) inFlight <- mkBypassFIFOF;
+    FIFOF#(ComponentId) inFlight <- mkBypassFIFOF;
 
     Reg#(Bool) doHalt <- mkReg(False);
     Reg#(Bool) doCanonicalize <- mkReg(False);
@@ -110,7 +91,7 @@ module mkF2H#(CoreIndication indication)(F2H);
             doHalt <= True;
         endmethod
 
-        method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
+        method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data);
             inFlight.enq(id);
             core.request(operation, id, addr, data);
         endmethod

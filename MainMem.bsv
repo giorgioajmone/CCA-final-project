@@ -17,8 +17,8 @@ interface MainMem;
     method Action halted;
     method Action restarted;
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
-    method ActionValue#(ExchangeData) response(ComponentdId id);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data);
+    method ActionValue#(ExchangeData) response(ComponentId id);
 endinterface
 
 interface MainMemFast;
@@ -104,16 +104,16 @@ module mkMainMem(MainMem);
     method Action restarted if(!doHalt);
     endmethod      
 
-    method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data) if(doHalt);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data) if(doHalt);
         let address = addr[valueOf(LineAddrLength)-1:0];
-        if(operation == Read) begin
+        if(operation == 0) begin
             bram.portA.request.put(BRAMRequest{write: unpack(0), responseOnWrite: True, address: address, datain: data});
         end else begin
             bram.portA.request.put(BRAMRequest{write: unpack(1), responseOnWrite: True, address: address, datain: data});
         end
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentdId id);
+    method ActionValue#(ExchangeData) response(ComponentId id);
         responseFIFO.deq();
         return responseFIFO.first();
     endmethod
