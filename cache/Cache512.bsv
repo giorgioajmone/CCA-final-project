@@ -10,7 +10,6 @@ import GenericCache::*;
 
 import SnapshotTypes::*;
 
-
 // Note that this interface *is* symmetric. 
 interface Cache512;
     method Action putFromProc(MainMemReq e);

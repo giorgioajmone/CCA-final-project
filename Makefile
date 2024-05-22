@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := all
 BUILD_DIR=build
 BINARY_NAME=F2H
-BSC_FLAGS=--aggressive-conditions --show-schedule -vdir $(BUILD_DIR) -bdir $(BUILD_DIR) -simdir $(BUILD_DIR) -o 
+BSC_FLAGS=--aggressive-conditions  -p +:./cache --show-schedule -vdir $(BUILD_DIR) -bdir $(BUILD_DIR) -simdir $(BUILD_DIR) -o
 
 .PHONY: clean all $(BINARY_NAME)
 

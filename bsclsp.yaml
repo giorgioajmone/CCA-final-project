@@ -1,2 +1,2 @@
 bscExtraArgs: []
-bscUserDirs: ["."]
+bscUserDirs: [".", "./cache"]
