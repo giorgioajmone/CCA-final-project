@@ -88,18 +88,17 @@ module mkCore(CoreInterface);
             mmio2host.enq(zeroExtend(req.data[7:0]));
             $fwrite(stderr, "%c", req.data[7:0]);
             $fflush(stderr);
-        end else begin
-            if (req.addr == 'hf000_fff8) begin
-                $display("RAN CYCLES", cycle_count);
-                // Exiting Simulation
-                if (req.data == 0) begin
-                    $fdisplay(stderr, "  [0;32mPASS[0m");
-                end else begin
-                    $fdisplay(stderr, "  [0;31mFAIL[0m (%0d)", req.data);
-                end
-                $fflush(stderr);
-                haltFIFO.enq(True);
+        end else if (req.addr == 'hf000_fff8) begin
+            $display("RAN CYCLES", cycle_count);
+            // Exiting Simulation
+            if (req.data == 0) begin
+                $fdisplay(stderr, "  [0;32mPASS[0m");
+            end else begin
+                $fdisplay(stderr, "  [0;31mFAIL[0m (%0d)", req.data);
             end
+            $fflush(stderr);
+        end else begin
+            haltFIFO.enq(True);
         end
         mmioreq.enq(req);
     endrule

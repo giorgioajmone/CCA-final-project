@@ -5,4 +5,6 @@ int getchar();
 int putchar(int c);
 int exit(int c);
 
+void waitForSnapshot();
+
 #endif
