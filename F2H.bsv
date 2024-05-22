@@ -40,12 +40,12 @@ interface CoreRequest;
     method Action request(SnapshotRequestType operation, ComponentdId id, ExchageAddress addr, ExchangeData data);
 endinterface
 
-interface Glue;
+interface F2H;
    interface CoreRequest request;
 endinterface
 
 (* synthesize *)
-module mkF2H#(CoreIndication indication)(Glue);
+module mkF2H#(CoreIndication indication)(F2H);
 
     FIFOF#(ComponentdId) inFlight <- mkBypassFIFOF;
 
