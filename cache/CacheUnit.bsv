@@ -51,9 +51,9 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
     FIFO#(Bool) tagAndStatusReqFIFO <- mkFIFO;
     FIFO#(Bool) dataReqFIFO <- mkFIFO;
 
-    Reg#(Bool) is_halted <- mkReg(False);
+    Reg#(Bool) doHalt <- mkReg(False);
 
-    method Action req(CUCacheReq#(addrBits, dataBits) r) if (!is_halted);
+    method Action req(CUCacheReq#(addrBits, dataBits) r) if (!doHalt);
         ParsedAddress#(addrBits, numWords, numLogLines, 1) parsedAddress = parseAddr(r.addr);
         let index = parsedAddress.index;
         let offset = parsedAddress.offset;
@@ -66,7 +66,7 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
         reqFIFO.enq(r);
     endmethod
 
-    method ActionValue#(CacheUnitResp#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords)) res() if (!is_halted);
+    method ActionValue#(CacheUnitResp#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords)) res() if (!doHalt);
         CacheUnitResp#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords) resp = ?;
         let req = reqFIFO.first;
         reqFIFO.deq;
@@ -111,7 +111,7 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
         return resp;
     endmethod
 
-    method Action update(TaggedLine#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords) newLine, Bit#(numLogLines) lineNum) if (!is_halted);
+    method Action update(TaggedLine#(Bit#(dataBits), CUTag#(addrBits, numWords, numLogLines, 1), cuStatus, numWords) newLine, Bit#(numLogLines) lineNum) if (!doHalt);
         // Send write requests to all the BRAMs without checking
         tagCache.portB.request.put(BRAMRequest{write: True, responseOnWrite: False, address: lineNum, datain: newLine.tag});
         statusCache.portB.request.put(BRAMRequest{write: True, responseOnWrite: False, address: lineNum, datain: newLine.status});
@@ -120,20 +120,20 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
     endmethod
 
     method Action halt;
-        is_halted <= True;
+        doHalt <= True;
     endmethod
 
-    method Action restart if (is_halted);
-        is_halted <= False;
+    method Action restart if (doHalt);
+        doHalt <= False;
     endmethod
 
-    method Action halted if (is_halted);
+    method Action halted if (doHalt);
     endmethod
 
-    method Action restarted if (!is_halted);
+    method Action restarted if (!doHalt);
     endmethod
 
-    method Action tagAndStatusReq(Bool is_write, Bit#(numLogLines) which_line, Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus) tagAndStatus) if (is_halted);
+    method Action tagAndStatusReq(Bool is_write, Bit#(numLogLines) which_line, Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus) tagAndStatus) if (doHalt);
         tagCache.portA.request.put(BRAMRequest{write: is_write, responseOnWrite: False, address: which_line, datain: tpl_1(tagAndStatus)});
         statusCache.portA.request.put(BRAMRequest{write: is_write, responseOnWrite: False, address: which_line, datain: tpl_2(tagAndStatus)});
         if(!is_write) begin
@@ -148,7 +148,7 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
         return tuple2(tagResp, statusResp);
     endmethod
 
-    method Action dataReq(Bool is_write, Bit#(numLogLines) which_line, Vector#(numWords, Bit#(dataBits)) data) if (is_halted);
+    method Action dataReq(Bool is_write, Bit#(numLogLines) which_line, Vector#(numWords, Bit#(dataBits)) data) if (doHalt);
         let write_mask = ?;
         if (is_write) write_mask = ~0; else write_mask = 0;
 

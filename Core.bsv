@@ -129,7 +129,7 @@ module mkCore(CoreInterface);
         doCanonicalize <= True;
     endmethod
     
-    method Action halt;
+    method Action halt if(!doCanonicalize);
         rv_core.halt();
         cache.halt();
     endmethod

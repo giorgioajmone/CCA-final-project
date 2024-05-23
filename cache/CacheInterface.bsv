@@ -47,21 +47,21 @@ module mkCacheInterface(CacheInterface);
 
     Reg#(Bool) outstandingMiss <- mkReg(False);
 
-    Reg#(Bool) is_halted <- mkReg(False);
+    Reg#(Bool) doHalt <- mkReg(False);
 
-    rule getFromMem if (!is_halted);
+    rule getFromMem if (!doHalt);
         let resp <- mainMem.get();
         if (verbose) $display("CacheInterface: Getting from Mem");
         cacheL2.putFromMem(resp);
     endrule
     
-    rule sendToMem if (!is_halted);
+    rule sendToMem if (!doHalt);
         let req <- cacheL2.getToMem();
         if (verbose) $display("CacheInterface: Sending to Mem");
         mainMem.put(req);
     endrule
     
-    rule getFromL2 if (!is_halted);
+    rule getFromL2 if (!doHalt);
         let resp <- cacheL2.getToProc();
         if (verbose) $display("CacheInterface: Getting from L2");
         if (toL2RoundRobin == INSTR) begin
@@ -72,7 +72,7 @@ module mkCacheInterface(CacheInterface);
         outstandingMiss <= False;
     endrule
     
-    rule sendToL2 if (outstandingMiss == False && !is_halted);
+    rule sendToL2 if (outstandingMiss == False && !doHalt);
         let req;
         if (toL2RoundRobin == INSTR && iToL2.notEmpty) begin
             req = iToL2.first;
@@ -105,18 +105,18 @@ module mkCacheInterface(CacheInterface);
         end
     endrule 
 
-    rule toL2Data if (!is_halted);
+    rule toL2Data if (!doHalt);
         let req <- cacheD.getToMem();
         dToL2.enq(req);
     endrule
 
-    rule toL2Instr if (!is_halted);
+    rule toL2Instr if (!doHalt);
         let req <- cacheI.getToMem();
         iToL2.enq(req);
     endrule
 
-    method Action halt;
-        is_halted <= True;
+    method Action halt if (!doHalt);
+        doHalt <= True;
         // I also need to halt all submodules
         cacheL2.halt;
         cacheI.halt;
@@ -125,8 +125,8 @@ module mkCacheInterface(CacheInterface);
     endmethod
 
 
-    method Action restart;
-        is_halted <= False;
+    method Action restart if (doHalt);
+        doHalt <= False;
         // I also need to restart all submodules
         cacheL2.restart;
         cacheI.restart;
@@ -135,14 +135,14 @@ module mkCacheInterface(CacheInterface);
 
     endmethod
 
-    method Action halted if (is_halted);
+    method Action halted if (doHalt);
         cacheL2.halted;
         cacheI.halted;
         cacheD.halted;
         mainMem.halted;
     endmethod
 
-    method Action restarted if (!is_halted);
+    method Action restarted if (!doHalt);
         cacheL2.restarted;
         cacheI.restarted;
         cacheD.restarted;
@@ -150,7 +150,7 @@ module mkCacheInterface(CacheInterface);
     endmethod
 
 
-    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data) if (is_halted);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data) if (doHalt);
         case (id)
             0: cacheI.request(operation, id, addr, data);
             1: cacheD.request(operation, id, addr, data);
@@ -185,21 +185,21 @@ module mkCacheInterface(CacheInterface);
         endcase
     endmethod
 
-    method Action sendReqData(CacheReq req) if (!is_halted);
+    method Action sendReqData(CacheReq req) if (!doHalt);
         cacheD.putFromProc(req);
     endmethod
 
-    method ActionValue#(Word) getRespData() if(!is_halted);
+    method ActionValue#(Word) getRespData() if(!doHalt);
         let resp <- cacheD.getToProc();
         return resp;
     endmethod
 
 
-    method Action sendReqInstr(CacheReq req) if (!is_halted);
+    method Action sendReqInstr(CacheReq req) if (!doHalt);
         cacheI.putFromProc(req);
     endmethod
 
-    method ActionValue#(Word) getRespInstr() if(!is_halted);
+    method ActionValue#(Word) getRespInstr() if(!doHalt);
         let resp <- cacheI.getToProc();
         return resp;
     endmethod

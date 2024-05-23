@@ -54,7 +54,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
     Reg#(Bit#(32)) missCnt <- mkReg(0);
     let verbose = False;
 
-    Reg#(Bool) is_halted <- mkReg(False);
+    Reg#(Bool) doHalt <- mkReg(False);
 
     function Bit#(TSub#(numWays, 1)) updateMetadata(Bit#(TSub#(numWays, 1)) old, Bit#(TLog#(numWays)) wayAccessed);
         // Pseudo LRU metadata update
@@ -95,7 +95,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         clk <= clk + 1;
     endrule
 
-    rule startFill if (mshr.state == START_FILL && !is_halted);
+    rule startFill if (mshr.state == START_FILL && !doHalt);
         // Dirty writeback is done, now start the fill
         reqToMemFifo.enq(GenericCacheReq{addr: {mshr.addr.tag, mshr.addr.index, mshr.addr.bank}, data: ?, word_byte: 0});
         mshr.state <= WAITING_FOR_MEM;
@@ -103,7 +103,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
             $display("[", valueOf(idx), "] Start fill ", clk);
     endrule
 
-    rule getData if (mshr.state == WAITING_FOR_DATA && !is_halted);
+    rule getData if (mshr.state == WAITING_FOR_DATA && !doHalt);
         Vector#(numWays, CacheUnitResp#(Bit#(datacpuBits), CUTag#(addrcpuBits, numWords, numLogLines, numBanks), LineState, numWords)) resp = ?;
         for (Integer i = 0; i < valueOf(numWays); i = i + 1)
             resp[i] <- cache[i].res();
@@ -252,34 +252,34 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
 
     // there are rules to detect the end of the canonicalization process
 
-    method Action halt if (!is_halted);
-        is_halted <= True;
+    method Action halt if (!doHalt);
+        doHalt <= True;
         // halt all cache units.
         for (Integer i = 0; i < valueOf(numWays); i = i + 1)
             cache[i].halt;
     endmethod
 
-    method Action restart if (is_halted);
-        is_halted <= False;
+    method Action restart if (doHalt);
+        doHalt <= False;
         // restart all cache units.
         for (Integer i = 0; i < valueOf(numWays); i = i + 1)
             cache[i].restart;
     endmethod
 
-    method Action halted if (is_halted);
+    method Action halted if (doHalt);
         // all cache units are halted.
         for (Integer i = 0; i < valueOf(numWays); i = i + 1)
             cache[i].halted;
     endmethod
 
-    method Action restarted if (!is_halted);
+    method Action restarted if (!doHalt);
         // all cache units are restarted.
         for (Integer i = 0; i < valueOf(numWays); i = i + 1)
             cache[i].restarted;
     endmethod
 
 
-    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data) if (is_halted);
+    method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data) if (doHalt);
         // the address is allocated in the following way:
         // low 2 bits: decide which information to extract:
         // - 00: LRU metadata
@@ -330,7 +330,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         end
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentId id);
+    method ActionValue#(ExchangeData) response(ComponentId id) if (doHalt);
         let operation = request_fifo.first;
         request_fifo.deq();
         case (operation) matches
@@ -354,7 +354,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
     endmethod
 
     
-    method Action putFromProc(GenericCacheReq#(addrcpuBits, datacpuBits) e) if (mshr.state == READY && !is_halted);
+    method Action putFromProc(GenericCacheReq#(addrcpuBits, datacpuBits) e) if (mshr.state == READY && !doHalt);
         ParsedAddress#(addrcpuBits, numWords, numLogLines, numBanks) addr = parseAddr(e.addr);
         let addrForBank = {addr.tag, addr.index, addr.offset};
         for (Integer i = 0; i < valueOf(numWays); i = i + 1)
@@ -370,7 +370,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         end
     endmethod
         
-    method ActionValue#(Bit#(datacpuBits)) getToProc() if (!is_halted);
+    method ActionValue#(Bit#(datacpuBits)) getToProc() if (!doHalt);
         let resp = respondFifo.first();
         respondFifo.deq();
         if (verbose)
@@ -378,7 +378,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         return resp;
     endmethod
         
-    method ActionValue#(GenericCacheReq#(addrmemBits, datamemBits)) getToMem() if (!is_halted);
+    method ActionValue#(GenericCacheReq#(addrmemBits, datamemBits)) getToMem() if (!doHalt);
         let req = reqToMemFifo.first();
         reqToMemFifo.deq();
         missCnt <= missCnt + 1;
@@ -389,7 +389,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         return req;
     endmethod
         
-    method Action putFromMem(Bit#(datamemBits) e) if ((mshr.state == WAITING_FOR_MEM || mshr.state == WAITING_FOR_DIRTY_RES) && !is_halted);
+    method Action putFromMem(Bit#(datamemBits) e) if ((mshr.state == WAITING_FOR_MEM || mshr.state == WAITING_FOR_DIRTY_RES) && !doHalt);
         Vector#(numWords, Bit#(datacpuBits)) memline = unpack(e);
         let status = Clean;
         let nextState = READY;
