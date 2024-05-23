@@ -250,8 +250,8 @@ static std::array<json, 3> exportCache() {
 static void exportSnapshot(std::ostream &s){
     json snapshot;
 
-    halt();
-    canonicalize();
+    /* halt();
+    canonicalize(); */
 
     uint32_t temporal_buffer[16] = {0}; 
 
@@ -322,6 +322,26 @@ static void importSnapshot(std::istream &s){
     restart();
 }
 
+static void startTest(std::istream &s){
+    
+    uint64_t write_buffer[8] = {0};
+    //MAIN MEMORY
+    for(uint64_t i = 0; i < MAIN_MEM_SIZE; i++){
+        auto data = snapshot["MainMem"][i];
+        for(int j = 0; j < 8; j++){
+            write_buffer[j] = data[j];
+        }
+        request(WRITE, MAIN_MEM_ID, i, reinterpret_cast<uint32_t *>(write_buffer));
+    }
+
+    // import L1i, L1d, L2 cache
+    deserializeCache(snapshot["L1i"], L1I_ID);
+    deserializeCache(snapshot["L1d"], L1D_ID);
+    deserializeCache(snapshot["L2"], L2_ID);
+
+    restart();
+}
+
 
 
 int main(int argc, const char **argv)
@@ -337,6 +357,9 @@ int main(int argc, const char **argv)
 	    (double)requestedFrequency * 1.0e-6,
 	    (double)actualFrequency * 1.0e-6,
 	    status, (status != 0) ? errno : 0);
+
+    std::ofstream ofs("FirstSnapshot.json", std::ios::out);
+    exportSnapshot(ofs);
 
     return 0;
 }

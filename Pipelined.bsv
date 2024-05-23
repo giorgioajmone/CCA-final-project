@@ -114,9 +114,9 @@ module mkPipelined(RVIfc);
 
     // INSTRUMENTATION
 
-    Reg#(Bool) doHalt <- mkReg(False);
+    Reg#(Bool) doHalt <- mkReg(True);
     Reg#(Bool) doCanonicalize <- mkReg(False);
-    Reg#(Bool) isCanonicalized <- mkReg(False);
+    Reg#(Bool) isCanonicalized <- mkReg(True);
     FIFO#(Bit#(32)) responseFIFO <- mkBypassFIFO;
 
     rule do_tic_logging;

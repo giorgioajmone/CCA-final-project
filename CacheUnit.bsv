@@ -51,7 +51,7 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
     FIFO#(Bool) tagAndStatusReqFIFO <- mkFIFO;
     FIFO#(Bool) dataReqFIFO <- mkFIFO;
 
-    Reg#(Bool) doHalt <- mkReg(False);
+    Reg#(Bool) doHalt <- mkReg(True);
 
     method Action req(CUCacheReq#(addrBits, dataBits) r) if (!doHalt);
         ParsedAddress#(addrBits, numWords, numLogLines, 1) parsedAddress = parseAddr(r.addr);

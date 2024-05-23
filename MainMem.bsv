@@ -61,7 +61,7 @@ module mkMainMem(MainMem);
     DelayLine#(20, MainMemResp) dl <- mkDL(); // Delay by 20 cycles
 
     // INSTRUMENTATION
-    Reg#(Bool) doHalt <- mkReg(False);
+    Reg#(Bool) doHalt <- mkReg(True);
 
     FIFO#(ExchangeData) responseFIFO <- mkBypassFIFO;
 

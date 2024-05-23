@@ -49,7 +49,7 @@ module mkF2H#(CoreIndication indication)(F2H);
 
     FIFOF#(ComponentId) inFlight <- mkBypassFIFOF;
 
-    Reg#(Bool) doHalt <- mkReg(False);
+    Reg#(Bool) doHalt <- mkReg(True);
     Reg#(Bool) doCanonicalize <- mkReg(False);
     Reg#(Bool) doRestart <- mkReg(False);
 

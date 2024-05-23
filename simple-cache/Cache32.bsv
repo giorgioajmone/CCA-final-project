@@ -47,7 +47,7 @@ module mkCache32(Cache32);
 
     // INSTRUMENTATION
 
-    Reg#(Bool) doHalt <- mkReg(False);
+    Reg#(Bool) doHalt <- mkReg(True);
     FIFO#(Bit#(64)) responseFIFO <- mkBypassFIFO;
     FIFO#(Bit#(3)) sliceFIFO <- mkBypassFIFO;
 
