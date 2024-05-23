@@ -9,6 +9,8 @@
 #include "CoreIndication.h"
 #include "GeneratedTypes.h"
 
+#include <fstream>
+
 using json = nlohmann::json;
 
 #define CORE_ID 0
@@ -322,7 +324,7 @@ static void importSnapshot(std::istream &s){
     restart();
 }
 
-static void startTest(std::istream &s){
+/* static void startTest(std::istream &s){
     
     uint64_t write_buffer[8] = {0};
     //MAIN MEMORY
@@ -340,7 +342,7 @@ static void startTest(std::istream &s){
     deserializeCache(snapshot["L2"], L2_ID);
 
     restart();
-}
+} */
 
 
 
@@ -358,7 +360,7 @@ int main(int argc, const char **argv)
 	    (double)actualFrequency * 1.0e-6,
 	    status, (status != 0) ? errno : 0);
 
-    std::ofstream ofs("FirstSnapshot.json", std::ios::out);
+    std::ofstream ofs("FirstSnapshot.json", std::ofstream::out);
     exportSnapshot(ofs);
 
     return 0;
