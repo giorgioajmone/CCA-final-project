@@ -7,6 +7,7 @@
 
 #include "CoreRequest.h"
 #include "CoreIndication.h"
+#include "GeneratedTypes.h"
 
 using json = nlohmann::json;
 
@@ -31,32 +32,32 @@ static sem_t sem_response;
 
 static uint64_t receivedData[8] = {0};
 
-class CoreIndication : public CoreIndicationWrapper {
+class CoreIndication final : public CoreIndicationWrapper {
 public:
-    virtual void halted() {
+    virtual void halted() override {
         sem_post(&sem_response);
     }
-    virtual void canonicalized() {
+    virtual void canonicalized() override {
         sem_post(&sem_response);
     }
-    virtual void restarted() {
+    virtual void restarted() override {
         sem_post(&sem_response);
     }
 
-    virtual void response(const char *output) {
+    virtual void response(const bsvvector_Luint32_t_L16 output) override {
         // copy the output to the receivedData buffer.
-        memcpy(receivedData, output, 8 * sizeof(uint64_t));
+        memcpy(receivedData, output, 16 * sizeof(uint32_t));
         sem_post(&sem_response);
     }
 
-    virtual void requestMMIO(uint64_t data){
+    virtual void requestMMIO(const uint64_t data) override {
         if((data >> 32) & 0x1)
             fprintf(stderr, "%d", static_cast<int>(data & 0xFFFFFFFF));
         else
             fprintf(stderr, "%c", static_cast<int>((data & 0xFF)+'0'));
     }
 
-    virtual void requestHalt(uint64_t data){
+    virtual void requestHalt(const int data) override {
         //TO DO when the fpga wants to halt
     }
 
@@ -78,7 +79,7 @@ static void restart() {
     sem_wait(&sem_response);
 }
 
-static void request(bool readOrWrite, uint8_t id, const uint64_t addr, const char *data) {
+static void request(bool readOrWrite, uint8_t id, const uint64_t addr, const bsvvector_Luint32_t_L16 data) {
     coreRequestProxy->request(readOrWrite, id, addr, data);
     sem_wait(&sem_response);
 }
@@ -96,7 +97,9 @@ static json extractSpecificCache(uint8_t id, int log2SetCount, int log2WayCount)
         json set_results;
         // fetch the LRU bits.
         uint64_t lru_addr = 0x0 | (set << 2);
-        request(READ, id, lru_addr, 0);
+        uint32_t fake_buffer[16] = {0};
+
+        request(READ, id, lru_addr, fake_buffer);
 
         assert(wayCount < 64); // Currently, we only support 64 ways, which is already enough.
         uint64_t lru = receivedData[0];
@@ -107,7 +110,7 @@ static json extractSpecificCache(uint8_t id, int log2SetCount, int log2WayCount)
             json way_result;
             // read the tag and metadata of the way.
             uint64_t tag_addr = 0x1 | (set << 2) | (way << (2 + log2SetCount));
-            request(READ, id, tag_addr, 0);
+            request(READ, id, tag_addr, fake_buffer);
             uint64_t tag_metadata = receivedData[0];
 
             uint64_t flag = tag_metadata & 0x3; // low 2-bit.
@@ -132,7 +135,7 @@ static json extractSpecificCache(uint8_t id, int log2SetCount, int log2WayCount)
 
             // read the data of the way.
             uint64_t data_addr = 0x2 | (set << 2) | (way << (2 + log2SetCount));
-            request(READ, id, data_addr, 0);
+            request(READ, id, data_addr, fake_buffer);
             uint64_t data[8] = {0};
             // copy it to the local buffer.
             for (int i = 0; i < 8; ++i) {
@@ -177,7 +180,7 @@ static void deserializeCache(const json& cache, uint8_t id) {
 
         uint64_t write_buffer[8] = {0};
         write_buffer[0] = lru;
-        request(WRITE, id, lru_addr, reinterpret_cast<const char *>(write_buffer));  
+        request(WRITE, id, lru_addr, reinterpret_cast<uint32_t *>(write_buffer));  
 
         auto lines = set_results["lines"];
         for (int way = 0; way < wayCount; ++way) {
@@ -201,7 +204,7 @@ static void deserializeCache(const json& cache, uint8_t id) {
 
             write_buffer[0] = tag_metadata;
 
-            request(WRITE, id, tag_addr, reinterpret_cast<const char *>(write_buffer));
+            request(WRITE, id, tag_addr, reinterpret_cast<uint32_t *>(write_buffer));
 
             auto data = way_result["data"];
             for (const auto& value : data) {
@@ -210,7 +213,7 @@ static void deserializeCache(const json& cache, uint8_t id) {
 
             // generate the address of updating data.
             uint64_t data_addr = 0x2 | (set << 2) | (way << (2 + log2SetCount));
-            request(WRITE, id, data_addr, reinterpret_cast<const char *>(write_buffer));
+            request(WRITE, id, data_addr, reinterpret_cast<uint32_t *>(write_buffer));
             
         }
     }
@@ -250,8 +253,7 @@ static void exportSnapshot(std::ostream &s){
     halt();
     canonicalize();
 
-    char temporal_buffer[512] = {0}; 
-    memset(temporal_buffer, 0, 512);
+    uint32_t temporal_buffer[16] = {0}; 
 
     //PC
     request(READ, CORE_ID, 0, temporal_buffer);
@@ -295,12 +297,12 @@ static void importSnapshot(std::istream &s){
 
     write_buffer[0] = snapshot["PC"];
     //PC
-    request(WRITE, CORE_ID, 0, reinterpret_cast<const char *>(write_buffer));
+    request(WRITE, CORE_ID, 0, reinterpret_cast<uint32_t *>(write_buffer));
 
     //RF
     for(uint64_t i = 1; i < RF_SIZE; i++){
         write_buffer[0] = snapshot["RegisterFile"][i];
-        request(WRITE, REGISTER_FILE_ID, i, reinterpret_cast<const char *>(write_buffer));
+        request(WRITE, REGISTER_FILE_ID, i, reinterpret_cast<uint32_t *>(write_buffer));
     }
 
     //MAIN MEMORY
@@ -309,7 +311,7 @@ static void importSnapshot(std::istream &s){
         for(int j = 0; j < 8; j++){
             write_buffer[j] = data[j];
         }
-        request(WRITE, MAIN_MEM_ID, i, reinterpret_cast<const char *>(write_buffer));
+        request(WRITE, MAIN_MEM_ID, i, reinterpret_cast<uint32_t *>(write_buffer));
     }
 
     // import L1i, L1d, L2 cache

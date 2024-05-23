@@ -20,12 +20,31 @@ name -> address
 import FIFO::*;
 import FIFOF::*;
 import SpecialFIFOs::*;
+import Vector::*;
 
 import Core::*;
 import SnapshotTypes::*;
 
+interface CoreIndication;
+    method Action halted;
+    method Action restarted;
+    method Action canonicalized;
+    method Action response(Vector#(16,Bit#(32)) data);
+    method Action requestMMIO(Bit#(33) data);
+    method Action requestHalt(Bool data);
+endinterface
 
-(* synthesize *)
+interface CoreRequest;
+    method Action halt;
+    method Action canonicalize;
+    method Action restart;
+    method Action request(Bit#(1) operation, Bit#(3) id, Bit#(32) addr, Vector#(16,Bit#(32)) data);
+endinterface
+
+interface F2H;
+   interface CoreRequest request;
+endinterface
+
 module mkF2H#(CoreIndication indication)(F2H);
 
     FIFOF#(ComponentId) inFlight <- mkBypassFIFOF;
@@ -51,7 +70,7 @@ module mkF2H#(CoreIndication indication)(F2H);
     rule waitResponse;
         let component = inFlight.first(); inFlight.deq();
         let data <- core.response(component);
-        indication.response(data);
+        indication.response(unpack(data));
     endrule 
     
     rule halted if(doHalt);
@@ -91,9 +110,9 @@ module mkF2H#(CoreIndication indication)(F2H);
             doHalt <= True;
         endmethod
 
-        method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data);
+        method Action request(Bit#(1) operation, Bit#(3) id, Bit#(32) addr, Vector#(16,Bit#(32)) data);
             inFlight.enq(id);
-            core.request(operation, id, addr, data);
+            core.request(operation, id, addr, pack(data));
         endmethod
 
     endinterface
