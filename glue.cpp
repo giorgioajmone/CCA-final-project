@@ -10,6 +10,7 @@
 #include "GeneratedTypes.h"
 
 #include <fstream>
+#include <iostream>
 
 using json = nlohmann::json;
 
@@ -257,16 +258,18 @@ static void exportSnapshot(std::ostream &s){
 
     uint32_t temporal_buffer[16] = {0}; 
 
+    std::cout << "PC" << std::endl;
     //PC
     request(READ, CORE_ID, 0, temporal_buffer);
     snapshot["PC"] = receivedData[0];
 
+    std::cout << "RF" << std::endl;
     //RF
     for(uint64_t i = 1; i < RF_SIZE; i++){
         request(READ, REGISTER_FILE_ID, i, temporal_buffer);
         snapshot["RegisterFile"].emplace_back(receivedData[0]);
     }
-
+    std::cout << "MainMemory" << std::endl;
     //MAIN MEMORY
     for(uint64_t i = 0; i < MAIN_MEM_SIZE; i++){
         request(READ, MAIN_MEM_ID, i, temporal_buffer);
@@ -274,14 +277,14 @@ static void exportSnapshot(std::ostream &s){
             snapshot["MainMem"][i].emplace_back(receivedData[j]);
         }
     }
-
+    std::cout << "Cache" << std::endl;
     //CACHE
     auto caches = exportCache();
     snapshot["L1i"] = caches[0];
     snapshot["L1d"] = caches[1];
     snapshot["L2"] = caches[2];
 
-
+    std::cout << "Restart" << std::endl;
     restart();
 
     s << std::setw(4) << snapshot << std::endl;
@@ -360,7 +363,9 @@ int main(int argc, const char **argv)
 	    (double)actualFrequency * 1.0e-6,
 	    status, (status != 0) ? errno : 0);
 
+    std::cout << "File" << std::endl;
     std::ofstream ofs("FirstSnapshot.json", std::ofstream::out);
+    std::cout << "Snapshot" << std::endl;
     exportSnapshot(ofs);
 
     return 0;
