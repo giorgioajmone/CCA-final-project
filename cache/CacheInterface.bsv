@@ -61,7 +61,7 @@ module mkCacheInterface(CacheInterface);
         mainMem.put(req);
     endrule
     
-    rule getFromL2 if (!doHalt);
+    rule getFromL2 if (outstandingMiss == True && !doHalt);
         let resp <- cacheL2.getToProc();
         if (verbose) $display("CacheInterface: Getting from L2");
         if (toL2RoundRobin == INSTR) begin
