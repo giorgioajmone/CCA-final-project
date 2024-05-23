@@ -49,7 +49,7 @@ module mkF2H#(CoreIndication indication)(F2H);
 
     FIFOF#(ComponentId) inFlight <- mkBypassFIFOF;
 
-    Reg#(Bool) doHalt <- mkReg(True);
+    Reg#(Bool) doHalt <- mkReg(False);
     Reg#(Bool) doCanonicalize <- mkReg(False);
     Reg#(Bool) doRestart <- mkReg(False);
 
@@ -68,9 +68,11 @@ module mkF2H#(CoreIndication indication)(F2H);
     endrule
 
     rule waitResponse;
-        let component = inFlight.first(); inFlight.deq();
+        let component = inFlight.first(); 
+        inFlight.deq();
         let data <- core.response(component);
         indication.response(unpack(data));
+        $display("F2H: response %d", component);
     endrule 
     
     rule halted if(doHalt);
@@ -111,6 +113,7 @@ module mkF2H#(CoreIndication indication)(F2H);
         endmethod
 
         method Action request(Bit#(1) operation, Bit#(3) id, Bit#(32) addr, Vector#(16,Bit#(32)) data);
+            $display("F2H: request %d %d %d", operation, id, addr);
             inFlight.enq(id);
             core.request(operation, id, addr, pack(data));
         endmethod

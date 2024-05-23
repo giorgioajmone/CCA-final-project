@@ -117,7 +117,7 @@ module mkPipelined(RVIfc);
     Reg#(Bool) doHalt <- mkReg(True);
     Reg#(Bool) doCanonicalize <- mkReg(False);
     Reg#(Bool) isCanonicalized <- mkReg(True);
-    FIFO#(Bit#(32)) responseFIFO <- mkBypassFIFO;
+    FIFOF#(Bit#(32)) responseFIFO <- mkBypassFIFOF;
 
     rule do_tic_logging;
         if (starting) begin
@@ -377,24 +377,33 @@ module mkPipelined(RVIfc);
         let writeData = data[31:0];
         if(operation == 0) begin
             case(address)
-                5'b00000: responseFIFO.enq(pc);
-                default: begin 
-                    let x <- rf.read(address);
+                5'b00000: begin
                     responseFIFO.enq(pc);
+                    $display("Pipeline [Request] PC");
+                end
+                default: begin 
+                    let x <- rf.dbg_read(address);
+                    responseFIFO.enq(x);
                 end
             endcase
         end else begin
             case(address)
                 5'b00000: pc <= writeData;
-                default: rf.write(address, writeData);
+                default: rf.dbg_write(address, writeData);
             endcase
             responseFIFO.enq(writeData);
         end
+
+        $display("Pipeline [Request] ", operation, " ", id, " ", addr, " ", data);
     endmethod
 
     method ActionValue#(ExchangeData) response(ComponentId id) if((doHalt && !doCanonicalize) || isCanonicalized);
-        let out = responseFIFO.first();
-        responseFIFO.deq();
+        let out = 0;
+        if(responseFIFO.notEmpty()) begin
+            out = responseFIFO.first();
+            responseFIFO.deq();
+        end
+        $display("Pipeline [Response] ", id, " ", out);
         return zeroExtend(out);
     endmethod
 

@@ -1,6 +1,7 @@
 import RVUtil::*;
 import BRAM::*;
 import FIFO::*;
+import FIFOF::*;
 import SpecialFIFOs::*;
 import DelayLine::*;
 import MemTypes::*;
@@ -63,7 +64,7 @@ module mkMainMem(MainMem);
     // INSTRUMENTATION
     Reg#(Bool) doHalt <- mkReg(True);
 
-    FIFO#(ExchangeData) responseFIFO <- mkBypassFIFO;
+    FIFOF#(ExchangeData) responseFIFO <- mkBypassFIFOF;
 
     rule deq if(!doHalt);
         let r <- bram.portA.response.get();
@@ -105,6 +106,7 @@ module mkMainMem(MainMem);
     endmethod      
 
     method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data) if(doHalt);
+        $display("MainMem: Requesting %d %d %d %d", operation, id, addr, data);
         let address = addr[valueOf(LineAddrLength)-1:0];
         if(operation == 0) begin
             bram.portA.request.put(BRAMRequest{write: unpack(0), responseOnWrite: True, address: address, datain: data});
@@ -114,8 +116,13 @@ module mkMainMem(MainMem);
     endmethod
 
     method ActionValue#(ExchangeData) response(ComponentId id);
-        responseFIFO.deq();
-        return responseFIFO.first();
+        let out = 0;
+        if(responseFIFO.notEmpty()) begin
+            out = responseFIFO.first();
+            responseFIFO.deq();
+        end
+        $display("MainMemory: Response", out);
+        return zeroExtend(out);
     endmethod
     
 endmodule

@@ -331,26 +331,28 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
     endmethod
 
     method ActionValue#(ExchangeData) response(ComponentId id) if (doHalt);
-        let operation = request_fifo.first;
-        request_fifo.deq();
-        case (operation) matches
-            0: begin
-                let data <- readLRUResponse();
-                return data;
-            end
-            1: begin
-                let data <- readTagAndStatusResponse();
-                return data;
-            end
-            2: begin
-                let data <- readDataResponse();
-                return data;
-            end
-            default: begin
-                dynamicAssert(False, "Invalid operation");
-                return signExtend(1'b1);
-            end
-        endcase
+        ExchangeData res = ?;
+        if (request_fifo.notEmpty) begin
+            let operation = request_fifo.first;
+            request_fifo.deq();
+            case (operation) matches
+                0: begin
+                    res <- readLRUResponse();
+                end
+                1: begin
+                    res <- readTagAndStatusResponse();
+                end
+                2: begin
+                    res <- readDataResponse();
+                end
+                default: begin
+                    dynamicAssert(False, "Invalid operation");
+                    res = signExtend(1'b1);
+                end
+            endcase
+        end
+
+        return res;
     endmethod
 
     

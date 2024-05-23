@@ -5,6 +5,9 @@ import RWire::*;
 interface RFIfc#(numeric type idx_bits, numeric type data_bits);
     method ActionValue#(Bit#(data_bits)) read (Bit#(idx_bits) idx);
     method Action write (Bit#(idx_bits) idx, Bit#(data_bits) data);
+
+    method ActionValue#(Bit#(data_bits)) dbg_read (Bit#(idx_bits) idx);
+    method Action dbg_write (Bit#(idx_bits) idx, Bit#(data_bits) data);
 endinterface
 
 module mkForwardingRF(RFIfc#(idx_bits, data_bits));
@@ -29,5 +32,13 @@ module mkForwardingRF(RFIfc#(idx_bits, data_bits));
             idx_forward[0].wset(idx);
             rf[idx] <= data;
         end
+    endmethod
+
+    method ActionValue#(Bit#(data_bits)) dbg_read (Bit#(idx_bits) idx);
+        return rf[idx];
+    endmethod
+
+    method Action dbg_write (Bit#(idx_bits) idx, Bit#(data_bits) data);
+        rf[idx] <= data;
     endmethod
 endmodule

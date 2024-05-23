@@ -156,6 +156,7 @@ module mkCore(CoreInterface);
             3: cache.request(operation, 2, addr, data);     // l2
             4: cache.request(operation, 3, addr, data);     // DRAM
         endcase
+        $display("Core Request ", id, operation, addr, data);
     endmethod
 
     method ActionValue#(ExchangeData) response(ComponentId id);
@@ -166,6 +167,7 @@ module mkCore(CoreInterface);
             3: cache.response(2);           // l2
             4: cache.response(3);           // DRAM
         endcase;
+        $display("Core Response ", id, data);
         return data;
     endmethod 
 

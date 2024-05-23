@@ -38,19 +38,25 @@ static uint64_t receivedData[8] = {0};
 class CoreIndication final : public CoreIndicationWrapper {
 public:
     virtual void halted() override {
+        printf("[glue.cpp] Halted\n");
         sem_post(&sem_response);
     }
     virtual void canonicalized() override {
+        printf("[glue.cpp] Canonicalized\n");
         sem_post(&sem_response);
     }
     virtual void restarted() override {
+        printf("[glue.cpp] Restarted\n");
         sem_post(&sem_response);
     }
 
     virtual void response(const bsvvector_Luint32_t_L16 output) override {
         // copy the output to the receivedData buffer.
         memcpy(receivedData, output, 16 * sizeof(uint32_t));
+        printf("[glue.cpp] Response received\n");
+
         sem_post(&sem_response);
+
     }
 
     virtual void requestMMIO(const uint64_t data) override {
@@ -62,6 +68,7 @@ public:
 
     virtual void requestHalt(const int data) override {
         //TO DO when the fpga wants to halt
+        printf("[glue.cpp] FPGA wants to halt\n");
     }
 
     CoreIndication(unsigned int id) : CoreIndicationWrapper(id) {}
@@ -84,6 +91,7 @@ static void restart() {
 
 static void request(bool readOrWrite, uint8_t id, const uint64_t addr, const bsvvector_Luint32_t_L16 data) {
     coreRequestProxy->request(readOrWrite, id, addr, data);
+
     sem_wait(&sem_response);
 }
 
@@ -263,6 +271,8 @@ static void exportSnapshot(std::ostream &s){
     request(READ, CORE_ID, 0, temporal_buffer);
     snapshot["PC"] = receivedData[0];
 
+    printf("PC: %lu\n", receivedData[0]);
+
     std::cout << "RF" << std::endl;
     //RF
     for(uint64_t i = 1; i < RF_SIZE; i++){
@@ -277,17 +287,19 @@ static void exportSnapshot(std::ostream &s){
             snapshot["MainMem"][i].emplace_back(receivedData[j]);
         }
     }
-    std::cout << "Cache" << std::endl;
-    //CACHE
-    auto caches = exportCache();
-    snapshot["L1i"] = caches[0];
-    snapshot["L1d"] = caches[1];
-    snapshot["L2"] = caches[2];
+    // std::cout << "Cache" << std::endl;
+    // //CACHE
+    // auto caches = exportCache();
+    // snapshot["L1i"] = caches[0];
+    // snapshot["L1d"] = caches[1];
+    // snapshot["L2"] = caches[2];
 
     std::cout << "Restart" << std::endl;
-    restart();
-
     s << std::setw(4) << snapshot << std::endl;
+
+    s.flush();
+
+    restart();
 }
 
 static void importSnapshot(std::istream &s){
@@ -356,6 +368,8 @@ int main(int argc, const char **argv)
 
     CoreIndication coreIndication(IfcNames_CoreIndicationH2S);
     coreRequestProxy = new CoreRequestProxy(IfcNames_CoreRequestS2H);
+
+    sem_init(&sem_response, 1, 1);
 
     int status = setClockFrequency(0, requestedFrequency, &actualFrequency);
     fprintf(stderr, "Requested main clock frequency %5.2f, actual clock frequency %5.2f MHz status=%d errno=%d\n",

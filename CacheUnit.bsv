@@ -48,8 +48,8 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
 
 
     // These requests are for aligning request.
-    FIFO#(Bool) tagAndStatusReqFIFO <- mkFIFO;
-    FIFO#(Bool) dataReqFIFO <- mkFIFO;
+    FIFOF#(Bool) tagAndStatusReqFIFO <- mkFIFOF;
+    FIFOF#(Bool) dataReqFIFO <- mkFIFOF;
 
     Reg#(Bool) doHalt <- mkReg(True);
 
@@ -142,10 +142,14 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
     endmethod
 
     method ActionValue#(Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus)) tagAndStatusResp;
-        let tagResp <- tagCache.portA.response.get;
-        let statusResp <- statusCache.portA.response.get;
-        tagAndStatusReqFIFO.deq;
-        return tuple2(tagResp, statusResp);
+        let return_value = ?;
+        if (tagAndStatusReqFIFO.notEmpty) begin
+            let tagResp <- tagCache.portA.response.get;
+            let statusResp <- statusCache.portA.response.get;
+            tagAndStatusReqFIFO.deq;
+            return_value = tuple2(tagResp, statusResp);
+        end
+        return return_value;
     endmethod
 
     method Action dataReq(Bool is_write, Bit#(numLogLines) which_line, Vector#(numWords, Bit#(dataBits)) data) if (doHalt);
@@ -161,10 +165,14 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
     endmethod
 
     method ActionValue#(Vector#(numWords, Bit#(dataBits))) dataResp;
-        dataReqFIFO.deq;
-        Vector#(numWords, Bit#(dataBits)) resp;
-        for (Integer i = 0; i < valueOf(numWords); i = i + 1)
-            resp[i] <- dataCache[i].portA.response.get;
-        return resp;
+        let return_value = ?;
+        if (dataReqFIFO.notEmpty) begin
+            Vector#(numWords, Bit#(dataBits)) resp;
+            for (Integer i = 0; i < valueOf(numWords); i = i + 1)
+                resp[i] <- dataCache[i].portA.response.get;
+            dataReqFIFO.deq;
+            return_value = resp;
+        end
+        return return_value;
     endmethod
 endmodule
