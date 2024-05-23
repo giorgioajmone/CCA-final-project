@@ -4,10 +4,11 @@
 #include <cstdint>
 
 #include "json.hpp"
-#include <boost/multiprecision/cpp_int.hpp>
+
+#include "CoreRequest.h"
+#include "CoreIndication.h"
 
 using json = nlohmann::json;
-using namespace boost::multiprecision;
 
 #define CORE_ID 0
 #define REGISTER_FILE_ID 0
@@ -28,7 +29,7 @@ using namespace boost::multiprecision;
 static CoreRequestProxy *coreRequestProxy = 0;
 static sem_t sem_response;
 
-static uint512_t receivedData = 0;
+static uint64_t receivedData[8] = {0};
 
 class CoreIndication : public CoreIndicationWrapper {
 public:
@@ -42,8 +43,9 @@ public:
         sem_post(&sem_response);
     }
 
-    virtual void response(uint512_t output) {
-        receivedData = output;
+    virtual void response(const char *output) {
+        // copy the output to the receivedData buffer.
+        memcpy(receivedData, output, 8 * sizeof(uint64_t));
         sem_post(&sem_response);
     }
 
@@ -76,7 +78,7 @@ static void restart() {
     sem_wait(&sem_response);
 }
 
-static void request(bool readOrWrite, uint8_t id, uint64_t addr, uint512_t data) {
+static void request(bool readOrWrite, uint8_t id, const uint64_t addr, const char *data) {
     coreRequestProxy->request(readOrWrite, id, addr, data);
     sem_wait(&sem_response);
 }
@@ -97,7 +99,7 @@ static json extractSpecificCache(uint8_t id, int log2SetCount, int log2WayCount)
         request(READ, id, lru_addr, 0);
 
         assert(wayCount < 64); // Currently, we only support 64 ways, which is already enough.
-        uint64_t lru = static_cast<uint64_t>(receivedData);
+        uint64_t lru = receivedData[0];
         set_results["lru"] = lru;
 
         // Now, fetch each way.
@@ -106,7 +108,7 @@ static json extractSpecificCache(uint8_t id, int log2SetCount, int log2WayCount)
             // read the tag and metadata of the way.
             uint64_t tag_addr = 0x1 | (set << 2) | (way << (2 + log2SetCount));
             request(READ, id, tag_addr, 0);
-            uint64_t tag_metadata = static_cast<uint64_t>(receivedData);
+            uint64_t tag_metadata = receivedData[0];
 
             uint64_t flag = tag_metadata & 0x3; // low 2-bit.
             if (flag == 0) {
@@ -131,11 +133,14 @@ static json extractSpecificCache(uint8_t id, int log2SetCount, int log2WayCount)
             // read the data of the way.
             uint64_t data_addr = 0x2 | (set << 2) | (way << (2 + log2SetCount));
             request(READ, id, data_addr, 0);
-            uint512_t data = receivedData;
+            uint64_t data[8] = {0};
+            // copy it to the local buffer.
+            for (int i = 0; i < 8; ++i) {
+                data[i] = receivedData[i];
+            }
             // convert data into 8 64-bit integers.
             for (int i = 0; i < 8; ++i) {
-                way_result["data"].emplace_back(static_cast<uint64_t>(data));
-                data >>= 64;
+                way_result["data"].emplace_back(data[i]);
             }
 
             set_results["lines"].emplace_back(way_result);
@@ -169,7 +174,10 @@ static void deserializeCache(const json& cache, uint8_t id) {
 
         // generate the address of updating LRU bits.
         uint64_t lru_addr = 0x0 | (set << 2);
-        request(WRITE, id, lru_addr, lru);  
+
+        uint64_t write_buffer[8] = {0};
+        write_buffer[0] = lru;
+        request(WRITE, id, lru_addr, reinterpret_cast<const char *>(write_buffer));  
 
         auto lines = set_results["lines"];
         for (int way = 0; way < wayCount; ++way) {
@@ -190,23 +198,19 @@ static void deserializeCache(const json& cache, uint8_t id) {
             } else {
                 tag_metadata |= 0x0;
             }
-            request(WRITE, id, tag_addr, tag_metadata);
+
+            write_buffer[0] = tag_metadata;
+
+            request(WRITE, id, tag_addr, reinterpret_cast<const char *>(write_buffer));
 
             auto data = way_result["data"];
-            std::vector<uint64_t> data_values;
             for (const auto& value : data) {
-                data_values.push_back(value);
-            }
-            uint512_t dataOut = 0;
-
-            for (int i = 7; i >= 0; --i) {
-                dataOut <<= 64;
-                dataOut |= data_values[i];
+                write_buffer[0] = value;
             }
 
             // generate the address of updating data.
             uint64_t data_addr = 0x2 | (set << 2) | (way << (2 + log2SetCount));
-            request(WRITE, id, data_addr, dataOut);
+            request(WRITE, id, data_addr, reinterpret_cast<const char *>(write_buffer));
             
         }
     }
@@ -246,23 +250,24 @@ static void exportSnapshot(std::ostream &s){
     halt();
     canonicalize();
 
+    char temporal_buffer[512] = {0}; 
+    memset(temporal_buffer, 0, 512);
+
     //PC
-    request(READ, CORE_ID, 0, 0);
-    snapshot["PC"] = static_cast<uint64_t>(receivedData);
+    request(READ, CORE_ID, 0, temporal_buffer);
+    snapshot["PC"] = receivedData[0];
 
     //RF
     for(uint64_t i = 1; i < RF_SIZE; i++){
-        request(READ, REGISTER_FILE_ID, i, 0);
-        snapshot["RegisterFile"].emplace_back(static_cast<uint64_t>(receivedData));
+        request(READ, REGISTER_FILE_ID, i, temporal_buffer);
+        snapshot["RegisterFile"].emplace_back(receivedData[0]);
     }
 
     //MAIN MEMORY
     for(uint64_t i = 0; i < MAIN_MEM_SIZE; i++){
-        request(READ, MAIN_MEM_ID, i, 0);
-        uint512_t data = receivedData;
+        request(READ, MAIN_MEM_ID, i, temporal_buffer);
         for (int j = 0; j < 8; j++) {
-            snapshot["MainMem"][i].emplace_back(static_cast<uint64_t>(data));
-            data >>= 64;
+            snapshot["MainMem"][i].emplace_back(receivedData[j]);
         }
     }
 
@@ -286,27 +291,25 @@ static void importSnapshot(std::istream &s){
     halt();
     canonicalize();
 
+    uint64_t write_buffer[8] = {0};
+
+    write_buffer[0] = snapshot["PC"];
     //PC
-    request(WRITE, CORE_ID, 0, (uint512_t) ((uint64_t)snapshot["PC"]));
+    request(WRITE, CORE_ID, 0, reinterpret_cast<const char *>(write_buffer));
 
     //RF
     for(uint64_t i = 1; i < RF_SIZE; i++){
-        request(WRITE, REGISTER_FILE_ID, i, (uint512_t) ((uint64_t)snapshot["RegisterFile"][i]));
+        write_buffer[0] = snapshot["RegisterFile"][i];
+        request(WRITE, REGISTER_FILE_ID, i, reinterpret_cast<const char *>(write_buffer));
     }
 
     //MAIN MEMORY
     for(uint64_t i = 0; i < MAIN_MEM_SIZE; i++){
         auto data = snapshot["MainMem"][i];
-        std::vector<uint64_t> data_values;
-        for (const auto& value : data) {
-            data_values.push_back(value);
+        for(int j = 0; j < 8; j++){
+            write_buffer[j] = data[j];
         }
-        uint512_t dataOut = 0;
-        for (int i = 7; i >= 0; --i) {
-            dataOut <<= 64;
-            dataOut |= data_values[i];
-        }
-        request(WRITE, MAIN_MEM_ID, i, dataOut);
+        request(WRITE, MAIN_MEM_ID, i, reinterpret_cast<const char *>(write_buffer));
     }
 
     // import L1i, L1d, L2 cache
@@ -324,8 +327,8 @@ int main(int argc, const char **argv)
     long actualFrequency = 0;
     long requestedFrequency = 1e9 / MainClockPeriod;
 
-    CoreIndication coreIndication(IfcNames_EchoIndicationH2S);
-    coreRequestProxy = new CoreRequestProxy(IfcNames_EchoRequestS2H);
+    CoreIndication coreIndication(IfcNames_CoreIndicationH2S);
+    coreRequestProxy = new CoreRequestProxy(IfcNames_CoreRequestS2H);
 
     int status = setClockFrequency(0, requestedFrequency, &actualFrequency);
     fprintf(stderr, "Requested main clock frequency %5.2f, actual clock frequency %5.2f MHz status=%d errno=%d\n",
