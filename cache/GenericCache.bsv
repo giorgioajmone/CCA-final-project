@@ -389,7 +389,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         return req;
     endmethod
         
-    method Action putFromMem(Bit#(datamemBits) e) if (!is_halted);
+    method Action putFromMem(Bit#(datamemBits) e) if (mshr.state == WAITING_FOR_MEM || mshr.state == WAITING_FOR_DIRTY_RES && !is_halted);
         Vector#(numWords, Bit#(datacpuBits)) memline = unpack(e);
         let status = Clean;
         let nextState = READY;
