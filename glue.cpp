@@ -289,7 +289,6 @@ static void exportSnapshot(std::ostream &s){
     json snapshot;
     uint32_t temporal_buffer[16] = {0}; 
 
-    
     //PC
     std::cout << "PC" << std::endl;
     request(READ, CORE_ID, 0, temporal_buffer);
@@ -323,7 +322,6 @@ static void exportSnapshot(std::ostream &s){
     s.flush();
 
     std::cout << "Restart" << std::endl;
-    restart();
 }
 
 static void importSnapshot(std::istream &s){
@@ -338,7 +336,7 @@ static void importSnapshot(std::istream &s){
 
     //RF
     for(uint64_t i = 1; i < RF_SIZE; i++){
-        write_buffer[0] = snapshot["RegisterFile"][i];
+        write_buffer[0] = snapshot["RegisterFile"][i-1];
         request(WRITE, REGISTER_FILE_ID, i, reinterpret_cast<uint32_t *>(write_buffer));
     }
 
@@ -355,8 +353,6 @@ static void importSnapshot(std::istream &s){
     deserializeCache(snapshot["L1i"], L1I_ID);
     deserializeCache(snapshot["L1d"], L1D_ID);
     deserializeCache(snapshot["L2"], L2_ID);
-
-    restart();
 }
 
 int main(int argc, const char **argv)
@@ -377,10 +373,14 @@ int main(int argc, const char **argv)
 	    status, (status != 0) ? errno : 0);
 
     std::cout << "File" << std::endl;
-    std::ofstream ofs("FirstSnapshot.json", std::ofstream::out);
+
+
+    //std::ofstream ofs("FirstSnapshot.json", std::ofstream::out);
+    std::ifstream ifs("FirstSnapshot.json", std::ifstream::in);
     std::cout << "Snapshot" << std::endl;
     
-    exportSnapshot(ofs);
+    //exportSnapshot(ofs);
+    importSnapshot(ifs);
     restart();
 
     while(true);

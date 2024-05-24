@@ -82,8 +82,8 @@ module mkCore(CoreInterface);
                 mmio2host.enq({1'b1,req.data});
                 //$display("%0d", req.data);
                 
-                $fwrite(stderr, "%0d", req.data);
-                $fflush(stderr);
+                //$fwrite(stderr, "%0d", req.data);
+                //$fflush(stderr);
             end
         end
         if (req.addr ==  'hf000_fff0) begin
@@ -92,8 +92,8 @@ module mkCore(CoreInterface);
             mmio2host.enq(zeroExtend(req.data[7:0]));
             //$display("%c", req.data[7:0]);
             
-            $fwrite(stderr, "%c", req.data[7:0]);
-            $fflush(stderr);
+            //$fwrite(stderr, "%c", req.data[7:0]);
+            //$fflush(stderr);
         end else if (req.addr == 'hf000_fff8) begin
             $display("RAN CYCLES", cycle_count);
             // Exiting Simulation
@@ -106,8 +106,8 @@ module mkCore(CoreInterface);
             end
             $fflush(stderr);
             //$finish;
-        end else begin
-            //haltFIFO.enq(True);
+        end else if(req.addr == 'hf000_fffa && req.byte_en != 0) begin
+            haltFIFO.enq(True);
         end
         mmioreq.enq(req);
     endrule
