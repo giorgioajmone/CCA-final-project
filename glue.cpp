@@ -12,7 +12,10 @@
 #include <fstream>
 #include <iostream>
 
+#include <atomic>
+
 using json = nlohmann::json;
+std::atomic_uint64_t atomic_integer = {0};
 
 #define CORE_ID 0
 #define REGISTER_FILE_ID 0
@@ -29,7 +32,6 @@ using json = nlohmann::json;
 #define WRITE true
 
 static CoreRequestProxy *coreRequestProxy = 0;
-static sem_t sem_response;
 
 static uint64_t receivedData[8] = {0};
 
@@ -37,15 +39,22 @@ class CoreIndication final : public CoreIndicationWrapper {
 public:
     virtual void halted() override {
         printf("[glue.cpp] Halted\n");
-        sem_post(&sem_response);
+
+        assert(atomic_integer.load() == 1);
+        atomic_integer.fetch_sub(1);
     }
     virtual void canonicalized() override {
         printf("[glue.cpp] Canonicalized\n");
-        sem_post(&sem_response);
+
+        assert(atomic_integer.load() == 1);
+        atomic_integer.fetch_sub(1);
+
     }
     virtual void restarted() override {
         printf("[glue.cpp] Restarted\n");
-        sem_post(&sem_response);
+
+        assert(atomic_integer.load() == 1);
+        atomic_integer.fetch_sub(1);
     }
 
     virtual void response(const bsvvector_Luint32_t_L16 output) override {
@@ -53,8 +62,8 @@ public:
         memcpy(receivedData, output, 16 * sizeof(uint32_t));
         printf("[glue.cpp] Response received\n");
 
-        sem_post(&sem_response);
-
+        assert(atomic_integer.load() == 1);
+        atomic_integer.fetch_sub(1);
     }
 
     virtual void requestMMIO(const uint64_t data) override {
@@ -76,24 +85,39 @@ public:
 };
 
 static void halt() {
+    assert(atomic_integer.load() == 0);
+    atomic_integer.fetch_add(1);
+
     coreRequestProxy->halt();
-    sem_wait(&sem_response);
+
+    while(atomic_integer.load() != 0);
 }
 
 static void canonicalize() {
+    assert(atomic_integer.load() == 0);
+    atomic_integer.fetch_add(1);
+
     coreRequestProxy->canonicalize();
-    sem_wait(&sem_response);
+
+    while(atomic_integer.load() != 0);
 }
 
 static void restart() {
+    assert(atomic_integer.load() == 0);
+    atomic_integer.fetch_add(1);
+
     coreRequestProxy->restart();
-    sem_wait(&sem_response);
+
+    while(atomic_integer.load() != 0);
 }
 
 static void request(bool readOrWrite, uint8_t id, const uint64_t addr, const bsvvector_Luint32_t_L16 data) {
+    assert(atomic_integer.load() == 0);
+    atomic_integer.fetch_add(1);
+
     coreRequestProxy->request(readOrWrite, id, addr, data);
 
-    sem_wait(&sem_response);
+    while(atomic_integer.load() != 0);
 }
 
 static json extractSpecificCache(uint8_t id, int log2SetCount, int log2WayCount) {
@@ -159,6 +183,8 @@ static json extractSpecificCache(uint8_t id, int log2SetCount, int log2WayCount)
             }
 
             set_results["lines"].emplace_back(way_result);
+
+            std::cout << "NEXT ITEM OF CACHE" << std::endl;
         }
 
         cache["data"].emplace_back(set_results);
@@ -341,7 +367,8 @@ int main(int argc, const char **argv)
     CoreIndication coreIndication(IfcNames_CoreIndicationH2S);
     coreRequestProxy = new CoreRequestProxy(IfcNames_CoreRequestS2H);
 
-    sem_init(&sem_response, 1, 1);
+    atomic_integer.store(0); // now it is one.
+
 
     int status = setClockFrequency(0, requestedFrequency, &actualFrequency);
     fprintf(stderr, "Requested main clock frequency %5.2f, actual clock frequency %5.2f MHz status=%d errno=%d\n",

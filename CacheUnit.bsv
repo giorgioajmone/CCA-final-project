@@ -134,14 +134,12 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
     endmethod
 
     method Action tagAndStatusReq(Bool is_write, Bit#(numLogLines) which_line, Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus) tagAndStatus) if (doHalt);
-        tagCache.portA.request.put(BRAMRequest{write: is_write, responseOnWrite: False, address: which_line, datain: tpl_1(tagAndStatus)});
-        statusCache.portA.request.put(BRAMRequest{write: is_write, responseOnWrite: False, address: which_line, datain: tpl_2(tagAndStatus)});
-        if(!is_write) begin
-            tagAndStatusReqFIFO.enq(?);
-        end
+        tagCache.portA.request.put(BRAMRequest{write: is_write, responseOnWrite: True, address: which_line, datain: tpl_1(tagAndStatus)});
+        statusCache.portA.request.put(BRAMRequest{write: is_write, responseOnWrite: True, address: which_line, datain: tpl_2(tagAndStatus)});
+        tagAndStatusReqFIFO.enq(?);
     endmethod
 
-    method ActionValue#(Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus)) tagAndStatusResp;
+    method ActionValue#(Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus)) tagAndStatusResp if(doHalt);
         let return_value = ?;
         if (tagAndStatusReqFIFO.notEmpty) begin
             let tagResp <- tagCache.portA.response.get;
@@ -152,22 +150,25 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
         return return_value;
     endmethod
 
-    method Action dataReq(Bool is_write, Bit#(numLogLines) which_line, Vector#(numWords, Bit#(dataBits)) data) if (doHalt);
+    method Action dataReq(Bool is_write, Bit#(numLogLines) which_line, Vector#(numWords, Bit#(dataBits)) data) if(doHalt);
+        $display("CacheUnit: dataReq");
+        $display("CacheUnit: is_write = %0d, which_line = %0d, data = %0h", is_write, which_line, data);
         let write_mask = ?;
         if (is_write) write_mask = ~0; else write_mask = 0;
 
         for (Integer i = 0; i < valueOf(numWords); i = i + 1)
-            dataCache[i].portA.request.put(BRAMRequestBE{writeen: write_mask, responseOnWrite: False, address: which_line, datain: data[i]});
+            dataCache[i].portA.request.put(BRAMRequestBE{writeen: write_mask, responseOnWrite: True, address: which_line, datain: data[i]});
+        
+        dataReqFIFO.enq(?);
 
-        if(!is_write) begin
-            dataReqFIFO.enq(?);
-        end
     endmethod
 
-    method ActionValue#(Vector#(numWords, Bit#(dataBits))) dataResp;
-        let return_value = ?;
+    method ActionValue#(Vector#(numWords, Bit#(dataBits))) dataResp if (doHalt);
+        $display("CacheUnit: dataResp");
+        Vector#(numWords, Bit#(dataBits)) return_value = ?;
+        for (Integer i = 0; i < valueOf(numWords); i = i + 1) return_value[i] = signExtend(1'b1);
         if (dataReqFIFO.notEmpty) begin
-            Vector#(numWords, Bit#(dataBits)) resp;
+            Vector#(numWords, Bit#(dataBits)) resp = ?;
             for (Integer i = 0; i < valueOf(numWords); i = i + 1)
                 resp[i] <- dataCache[i].portA.response.get;
             dataReqFIFO.deq;

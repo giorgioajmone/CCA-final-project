@@ -227,6 +227,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
     function Action readData(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way);
         action
             cache[way].dataReq(False, set, ?);
+            read_data_token.enq(?);
         endaction
     endfunction: readData
 
@@ -294,18 +295,15 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         let way_index_length = valueOf(TLog#(numWays));
         let way_index = addr[2+valueOf(numLogLines)+way_index_length-1:2+valueOf(numLogLines)]; // this is the way index
         if (operation == 0) begin
-            case (addr[1:0]) matches
+            case (addr[1:0])
                 2'b00: begin
                     readLRURequest(set_index);
-                    request_fifo.enq(0);
                 end
                 2'b01: begin
                     readTagAndStatus(set_index, way_index);
-                    request_fifo.enq(1);
                 end
                 2'b10: begin
                     readData(set_index, way_index);
-                    request_fifo.enq(2);
                 end
                 2'b11: begin
                     dynamicAssert(False, "Invalid operation");
@@ -313,7 +311,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
             endcase
         end
         else begin
-            case (addr[1:0]) matches
+            case (addr[1:0])
                 2'b00: begin
                     writeLRUBits(set_index, data[way_index_length-1:0]); //changed from 2 to 1 please check
                 end
@@ -328,6 +326,8 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
                 end
             endcase
         end
+        $display("GenericCache : Metadata requested: ", addr[1:0]);
+        request_fifo.enq(addr[1:0]);
     endmethod
 
     method ActionValue#(ExchangeData) response(ComponentId id) if (doHalt);
@@ -335,14 +335,14 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         if (request_fifo.notEmpty) begin
             let operation = request_fifo.first;
             request_fifo.deq();
-            case (operation) matches
-                0: begin
+            case (operation)
+                2'b00: begin
                     res <- readLRUResponse();
                 end
-                1: begin
+                2'b01: begin
                     res <- readTagAndStatusResponse();
                 end
-                2: begin
+                2'b10: begin
                     res <- readDataResponse();
                 end
                 default: begin
@@ -351,7 +351,6 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
                 end
             endcase
         end
-
         return res;
     endmethod
 
