@@ -60,10 +60,13 @@ public:
     }
 
     virtual void requestMMIO(const uint64_t data) override {
+        fprintf(stderr, "MMIO RECEIVED: ");
+        //fprintf(stderr, "%016lx", data);
         if((data >> 32) & 0x1)
             fprintf(stderr, "%d", static_cast<int>(data & 0xFFFFFFFF));
         else
-            fprintf(stderr, "%c", static_cast<int>((data & 0xFF)+'0'));
+            fprintf(stderr, "%c", static_cast<char>(data));
+        fprintf(stderr, "\n");
     }
 
     virtual void requestHalt(const int data) override {
@@ -380,8 +383,10 @@ int main(int argc, const char **argv)
     std::cout << "File" << std::endl;
     std::ofstream ofs("FirstSnapshot.json", std::ofstream::out);
     std::cout << "Snapshot" << std::endl;
-    exportSnapshot(ofs);
+    //exportSnapshot(ofs);
+    restart();
 
+    while(true);
     return 0;
 }
 

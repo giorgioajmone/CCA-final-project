@@ -29,7 +29,7 @@ module mkCore(CoreInterface);
     FIFO#(Mem) ireq <- mkFIFO;
     FIFO#(Mem) dreq <- mkFIFO;
     FIFO#(Mem) mmioreq <- mkFIFO;
-    let debug = True;
+    let debug = False;
     Reg#(Bit#(32)) cycle_count <- mkReg(0);
 
     Reg#(Bool) doCanonicalize <- mkReg(False);
@@ -78,27 +78,36 @@ module mkCore(CoreInterface);
         if (req.byte_en == 'hf) begin
             if (req.addr == 'hf000_fff4) begin
                 // Write integer to STDERR
+                
                 mmio2host.enq({1'b1,req.data});
-                // $fwrite(stderr, "%0d", req.data);
-                // $fflush(stderr);
+                //$display("%0d", req.data);
+                
+                $fwrite(stderr, "%0d", req.data);
+                $fflush(stderr);
             end
         end
         if (req.addr ==  'hf000_fff0) begin
             // Writing to STDERR
+            
             mmio2host.enq(zeroExtend(req.data[7:0]));
-            // $fwrite(stderr, "%c", req.data[7:0]);
-            // $fflush(stderr);
+            //$display("%c", req.data[7:0]);
+            
+            $fwrite(stderr, "%c", req.data[7:0]);
+            $fflush(stderr);
         end else if (req.addr == 'hf000_fff8) begin
             $display("RAN CYCLES", cycle_count);
             // Exiting Simulation
             if (req.data == 0) begin
+                //$display("  [0;32mPASS[0m");
                 $fdisplay(stderr, "  [0;32mPASS[0m");
             end else begin
                 $fdisplay(stderr, "  [0;31mFAIL[0m (%0d)", req.data);
+                //$display("  [0;31mFAIL[0m (%0d)", req.data);
             end
-            // $fflush(stderr);
+            $fflush(stderr);
+            //$finish;
         end else begin
-            haltFIFO.enq(True);
+            //haltFIFO.enq(True);
         end
         mmioreq.enq(req);
     endrule
