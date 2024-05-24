@@ -47,11 +47,6 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
 
     FIFO#(CUCacheReq#(addrBits, dataBits)) reqFIFO <- mkFIFO;
 
-
-    // These requests are for aligning request.
-    FIFOF#(Bool) tagAndStatusReqFIFO <- mkFIFOF;
-    FIFOF#(Bool) dataReqFIFO <- mkFIFOF;
-
     Reg#(Bool) doHalt <- mkReg(True);
 
     method Action req(CUCacheReq#(addrBits, dataBits) r) if (!doHalt);
@@ -137,18 +132,12 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
     method Action tagAndStatusReq(Bool is_write, Bit#(numLogLines) which_line, Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus) tagAndStatus) if (doHalt);
         tagCache.portA.request.put(BRAMRequest{write: is_write, responseOnWrite: True, address: which_line, datain: tpl_1(tagAndStatus)});
         statusCache.portA.request.put(BRAMRequest{write: is_write, responseOnWrite: True, address: which_line, datain: tpl_2(tagAndStatus)});
-        tagAndStatusReqFIFO.enq(?);
     endmethod
 
     method ActionValue#(Tuple2#(CUTag#(addrBits, numWords, numLogLines, 1), cuStatus)) tagAndStatusResp if(doHalt);
-        let return_value = ?;
-        if (tagAndStatusReqFIFO.notEmpty) begin
-            let tagResp <- tagCache.portA.response.get;
-            let statusResp <- statusCache.portA.response.get;
-            tagAndStatusReqFIFO.deq;
-            return_value = tuple2(tagResp, statusResp);
-        end
-        return return_value;
+        let tagResp <- tagCache.portA.response.get;
+        let statusResp <- statusCache.portA.response.get;
+        return tuple2(tagResp, statusResp);
     endmethod
 
     method Action dataReq(Bool is_write, Bit#(numLogLines) which_line, Vector#(numWords, Bit#(dataBits)) data) if(doHalt);
@@ -160,21 +149,14 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
         for (Integer i = 0; i < valueOf(numWords); i = i + 1)
             dataCache[i].portA.request.put(BRAMRequestBE{writeen: write_mask, responseOnWrite: True, address: which_line, datain: data[i]});
         
-        dataReqFIFO.enq(?);
 
     endmethod
 
     method ActionValue#(Vector#(numWords, Bit#(dataBits))) dataResp if (doHalt);
         $display("CacheUnit: dataResp");
-        Vector#(numWords, Bit#(dataBits)) return_value = ?;
-        for (Integer i = 0; i < valueOf(numWords); i = i + 1) return_value[i] = signExtend(1'b1);
-        if (dataReqFIFO.notEmpty) begin
-            Vector#(numWords, Bit#(dataBits)) resp = ?;
-            for (Integer i = 0; i < valueOf(numWords); i = i + 1)
-                resp[i] <- dataCache[i].portA.response.get;
-            dataReqFIFO.deq;
-            return_value = resp;
-        end
-        return return_value;
+        Vector#(numWords, Bit#(dataBits)) resp = ?;
+        for (Integer i = 0; i < valueOf(numWords); i = i + 1)
+            resp[i] <- dataCache[i].portA.response.get;
+        return resp;
     endmethod
 endmodule

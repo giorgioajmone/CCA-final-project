@@ -172,39 +172,32 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         replacementMetadata.portA.request.put(BRAMRequest{write: True, responseOnWrite: False, address: mshr.addr.index, datain: newMetadata});
     endrule
 
-    FIFO#(Bit#(1)) read_lru_token <- mkBypassFIFO();
 
-    function Action readLRURequest(Bit#(numLogLines) set);
+    function Action requestLRU(Bit#(1) operation, Bit#(numLogLines) set, Bit#(TSub#(numWays, 1)) bits);
         action
-            replacementMetadata.portA.request.put(BRAMRequest{write: False, responseOnWrite: False, address: set, datain: ?});
-            read_lru_token.enq(?);
+            replacementMetadata.portA.request.put(BRAMRequest{write: operation == 1'b1, responseOnWrite: True, address: set, datain: bits});
         endaction
-    endfunction: readLRURequest
+    endfunction: requestLRU
 
-    function ActionValue#(ExchangeData) readLRUResponse();
+    function ActionValue#(ExchangeData) responseLRU();
         actionvalue
-            read_lru_token.deq();
             Bit#(TSub#(numWays, 1)) res <- replacementMetadata.portA.response.get;
             return zeroExtend(res);
         endactionvalue
-    endfunction: readLRUResponse
-
-    function Action writeLRUBits(Bit#(numLogLines) addr, Bit#(TSub#(numWays, 1)) bits);
-        action 
-            replacementMetadata.portA.request.put(BRAMRequest{write: True, responseOnWrite: False, address: addr, datain: bits});
-        endaction
-    endfunction: writeLRUBits
+    endfunction: responseLRU
 
     FIFO#(Bit#(TLog#(numWays))) read_tag_token <- mkBypassFIFO();
 
-    function Action readTagAndStatus(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way);
+    function Action requestTagAndStatus(Bit#(1) operation, Bit#(numLogLines) set, Bit#(TLog#(numWays)) way, ExchangeData data);
         action
             read_tag_token.enq(way);
-            cache[way].tagAndStatusReq(False, set, ?);
+            let upper_idx = valueOf(SizeOf#(Tuple2#(CUTag#(addrmemBits, numWords, numLogLines, 1), LineState)));
+            let needed_data = data[upper_idx-1:0];
+            cache[way].tagAndStatusReq(operation == 1'b1, set, unpack(needed_data));
         endaction
-    endfunction: readTagAndStatus
+    endfunction: requestTagAndStatus
 
-    function ActionValue#(ExchangeData) readTagAndStatusResponse();
+    function ActionValue#(ExchangeData) responseTagAndStatus();
         actionvalue
             let way = read_tag_token.first;
             read_tag_token.deq();
@@ -213,42 +206,29 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
             ExchangeData exchangeData = zeroExtend(pack(res));
             return exchangeData;
         endactionvalue
-    endfunction: readTagAndStatusResponse
-
-    function Action writeTagAndStatus(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way, ExchangeData data);
-        action
-            let upper_idx = valueOf(SizeOf#(Tuple2#(CUTag#(addrmemBits, numWords, numLogLines, 1), LineState)));
-            let needed_data = data[upper_idx-1:0];
-            cache[way].tagAndStatusReq(True, set, unpack(needed_data));
-        endaction
-    endfunction: writeTagAndStatus
+    endfunction: responseTagAndStatus
 
     FIFO#(Bit#(TLog#(numWays))) read_data_token <- mkBypassFIFO();
 
-    function Action readData(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way);
+    function Action requestData(Bit#(1) operation, Bit#(numLogLines) set, Bit#(TLog#(numWays)) way, ExchangeData data);
         action
-            cache[way].dataReq(False, set, ?);
+            let upper_index = valueOf(SizeOf#(Vector#(numWords, Bit#(datacpuBits))));
+            cache[way].dataReq(operation == 1, set, unpack(data[upper_index-1:0]));
             read_data_token.enq(way);
         endaction
-    endfunction: readData
+    endfunction: requestData
 
-    function ActionValue#(ExchangeData) readDataResponse();
+    function ActionValue#(ExchangeData) responseData();
         actionvalue
             let way = read_data_token.first;
             read_data_token.deq();
-            let res <- cache[way].dataResp();
+            let res <- cache[way].dataResp(); 
             // now, we have to serialize the response. Maybe you don't need the zeroExtend here.
             ExchangeData exchangeData = zeroExtend(pack(res));
             return exchangeData;
         endactionvalue
-    endfunction: readDataResponse
+    endfunction: responseData
 
-    function Action writeData(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way, ExchangeData data);
-        action
-            let upper_index = valueOf(SizeOf#(Vector#(numWords, Bit#(datacpuBits))));
-            cache[way].dataReq(True, set, unpack(data[upper_index-1:0]));
-        endaction
-    endfunction: writeData
 
     FIFOF#(Bit#(2)) request_fifo <- mkBypassFIFOF();
 
@@ -295,38 +275,21 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         let set_index = addr[2+valueOf(numLogLines)-1:2]; // this is the set index
         let way_index_length = valueOf(TLog#(numWays));
         let way_index = addr[2+valueOf(numLogLines)+way_index_length-1:2+valueOf(numLogLines)]; // this is the way index
-        if (operation == 0) begin
-            case (addr[1:0])
-                2'b00: begin
-                    readLRURequest(set_index);
-                end
-                2'b01: begin
-                    readTagAndStatus(set_index, way_index);
-                end
-                2'b10: begin
-                    readData(set_index, way_index);
-                end
-                2'b11: begin
-                    dynamicAssert(False, "Invalid operation");
-                end
-            endcase
-        end
-        else begin
-            case (addr[1:0])
-                2'b00: begin
-                    writeLRUBits(set_index, data[way_index_length-1:0]); //changed from 2 to 1 please check
-                end
-                2'b01: begin
-                    writeTagAndStatus(set_index, way_index, data);
-                end
-                2'b10: begin
-                    writeData(set_index, way_index, data);
-                end
-                2'b11: begin
-                    dynamicAssert(False, "Invalid operation");
-                end
-            endcase
-        end
+        case (addr[1:0])
+            2'b00: begin
+                requestLRU(operation, set_index, data[valueOf(TSub#(numWays, 1))-1:0]);
+            end
+            2'b01: begin
+                requestTagAndStatus(operation, set_index, way_index, data);
+            end
+            2'b10: begin
+                requestData(operation, set_index, way_index, data);
+            end
+            2'b11: begin
+                dynamicAssert(False, "Invalid operation");
+            end
+        endcase
+       
         $display("GenericCache : Metadata requested: ", addr[1:0]);
         request_fifo.enq(addr[1:0]); // TODO: deadlock here. Write operation should not call the 
     endmethod
@@ -338,13 +301,13 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
             request_fifo.deq();
             case (operation)
                 2'b00: begin
-                    res <- readLRUResponse();
+                    res <- responseLRU();
                 end
                 2'b01: begin
-                    res <- readTagAndStatusResponse();
+                    res <- responseTagAndStatus();
                 end
                 2'b10: begin
-                    res <- readDataResponse();
+                    res <- responseData();
                 end
                 default: begin
                     dynamicAssert(False, "Invalid operation");
