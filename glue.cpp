@@ -28,8 +28,6 @@ using json = nlohmann::json;
 #define READ false
 #define WRITE true
 
-//TO DO: add header files for connectal 
-
 static CoreRequestProxy *coreRequestProxy = 0;
 static sem_t sem_response;
 
@@ -263,60 +261,53 @@ static std::array<json, 3> exportCache() {
 
 static void exportSnapshot(std::ostream &s){
     json snapshot;
-
-    /* halt();
-    canonicalize(); */
-
     uint32_t temporal_buffer[16] = {0}; 
 
-    std::cout << "PC" << std::endl;
+    
     //PC
+    std::cout << "PC" << std::endl;
     request(READ, CORE_ID, 0, temporal_buffer);
     snapshot["PC"] = receivedData[0];
-
-    printf("PC: %lu\n", receivedData[0]);
-
-    std::cout << "RF" << std::endl;
+    
     //RF
+    std::cout << "RF" << std::endl;
     for(uint64_t i = 1; i < RF_SIZE; i++){
         request(READ, REGISTER_FILE_ID, i, temporal_buffer);
         snapshot["RegisterFile"].emplace_back(receivedData[0]);
     }
-    std::cout << "MainMemory" << std::endl;
+
+    
+    //CACHE
+    std::cout << "Cache" << std::endl;
+    auto caches = exportCache();
+    snapshot["L1i"] = caches[0];
+    snapshot["L1d"] = caches[1];
+    snapshot["L2"] = caches[2];
+    
     //MAIN MEMORY
+    std::cout << "MainMemory" << std::endl;
     for(uint64_t i = 0; i < MAIN_MEM_SIZE; i++){
         request(READ, MAIN_MEM_ID, i, temporal_buffer);
         for (int j = 0; j < 8; j++) {
             snapshot["MainMem"][i].emplace_back(receivedData[j]);
         }
     }
-    // std::cout << "Cache" << std::endl;
-    // //CACHE
-    // auto caches = exportCache();
-    // snapshot["L1i"] = caches[0];
-    // snapshot["L1d"] = caches[1];
-    // snapshot["L2"] = caches[2];
 
-    std::cout << "Restart" << std::endl;
     s << std::setw(4) << snapshot << std::endl;
-
     s.flush();
 
+    std::cout << "Restart" << std::endl;
     restart();
 }
 
 static void importSnapshot(std::istream &s){
     json snapshot;
+    uint64_t write_buffer[8] = {0};
 
     s >> snapshot;
 
-    halt();
-    canonicalize();
-
-    uint64_t write_buffer[8] = {0};
-
-    write_buffer[0] = snapshot["PC"];
     //PC
+    write_buffer[0] = snapshot["PC"];
     request(WRITE, CORE_ID, 0, reinterpret_cast<uint32_t *>(write_buffer));
 
     //RF
@@ -342,28 +333,6 @@ static void importSnapshot(std::istream &s){
     restart();
 }
 
-/* static void startTest(std::istream &s){
-    
-    uint64_t write_buffer[8] = {0};
-    //MAIN MEMORY
-    for(uint64_t i = 0; i < MAIN_MEM_SIZE; i++){
-        auto data = snapshot["MainMem"][i];
-        for(int j = 0; j < 8; j++){
-            write_buffer[j] = data[j];
-        }
-        request(WRITE, MAIN_MEM_ID, i, reinterpret_cast<uint32_t *>(write_buffer));
-    }
-
-    // import L1i, L1d, L2 cache
-    deserializeCache(snapshot["L1i"], L1I_ID);
-    deserializeCache(snapshot["L1d"], L1D_ID);
-    deserializeCache(snapshot["L2"], L2_ID);
-
-    restart();
-} */
-
-
-
 int main(int argc, const char **argv)
 {
     long actualFrequency = 0;
@@ -383,69 +352,10 @@ int main(int argc, const char **argv)
     std::cout << "File" << std::endl;
     std::ofstream ofs("FirstSnapshot.json", std::ofstream::out);
     std::cout << "Snapshot" << std::endl;
-    //exportSnapshot(ofs);
+    
+    exportSnapshot(ofs);
     restart();
 
     while(true);
     return 0;
 }
-
-/* // L1I DIRECT MAPPED CACHE FIELD = 0
-    for(uint64_t address = 0; address < L1_SIZE; address++){
-        request(READ, L1I_ID, 0 << 7 | address, 0);
-        snapshot["L1i"]["Tags"].emplace_back(static_cast<uint64_t>(receivedData));
-    }
-
-    // L1I DIRECT MAPPED CACHE FIELD = 1
-    for(uint64_t address = 0; address < L1_SIZE; address++){
-        request(READ, L1I_ID, 1 << 7 | address, 0);
-        snapshot["L1i"]["State"].emplace_back(static_cast<uint64_t>(receivedData));
-    }
-
-    // L1I DIRECT MAPPED CACHE FIELD = 2
-    for(uint64_t address = 0; address < L1_SIZE; address++){
-        for(uint64_t slice = 0; slice < 8; slice++){
-            request(READ, L1I_ID, slice << 9 | 2 << 7 | address, 0);
-            snapshot["L1i"]["Data"][address].emplace_back(static_cast<uint64_t>(receivedData));
-        }
-    }
-
-    // L1D DIRECT MAPPED CACHE FIELD = 0
-    for(uint64_t address = 0; address < L1_SIZE; address++){
-        request(READ, L1D_ID, 0 << 7 | address, 0);
-        snapshot["L1d"]["Tags"].emplace_back(static_cast<uint64_t>(receivedData));
-    }
-
-    // L1D DIRECT MAPPED CACHE FIELD = 1
-    for(uint64_t address = 0; address < L1_SIZE; address++){
-        request(READ, L1D_ID, 1 << 7 | address, 0);
-        snapshot["L1d"]["State"].emplace_back(static_cast<uint64_t>(receivedData));
-    }
-
-    // L1D DIRECT MAPPED CACHE FIELD = 2
-    for(uint64_t address = 0; address < L1_SIZE; address++){
-        for(uint64_t slice = 0; slice < 8; slice++){
-            request(READ, L1D_ID, slice << 9 | 2 << 7 | address, 0);
-            snapshot["L1d"]["Data"][address].emplace_back(static_cast<uint64_t>(receivedData));
-        }
-    }
-
-    // L2 DIRECT MAPPED CACHE FIELD = 0
-    for(uint64_t address = 0; address < L2_SIZE; address++){
-        request(READ, L2_ID, 0 << 8 | address, 0);
-        snapshot["L2"]["Tags"].emplace_back(static_cast<uint64_t>(receivedData));
-    }
-
-    // L2 DIRECT MAPPED CACHE FIELD = 1
-    for(uint64_t address = 0; address < L2_SIZE; address++){
-        request(READ, L2_ID, 1 << 8 | address, 0);
-        snapshot["L2"]["State"].emplace_back(static_cast<uint64_t>(receivedData));
-    }
-
-    // L2 DIRECT MAPPED CACHE FIELD = 2
-    for(uint64_t address = 0; address < L2_SIZE; address++){
-        for(uint64_t slice = 0; slice < 8; slice++){
-            request(READ, L2_ID, slice << 10 | 2 << 8 | address, 0);
-            snapshot["L2"]["Data"][address].emplace_back(static_cast<uint64_t>(receivedData));
-        }
-    } */
