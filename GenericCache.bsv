@@ -290,7 +290,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
             end
         endcase
        
-        $display("GenericCache : Metadata requested: ", addr[1:0]);
+        // $display("GenericCache : Metadata requested: ", addr[1:0]);
         request_fifo.enq(addr[1:0]); // TODO: deadlock here. Write operation should not call the 
     endmethod
 

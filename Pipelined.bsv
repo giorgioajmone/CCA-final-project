@@ -38,6 +38,7 @@ function Bool isMMIO(Bit#(32) addr);
         32'hf000fff0: True;
         32'hf000fff4: True;
         32'hf000fff8: True;
+        32'hf000fffc: True;
         default: False;
     endcase;
     return x;
@@ -379,7 +380,7 @@ module mkPipelined(RVIfc);
             case(address)
                 5'b00000: begin
                     responseFIFO.enq(pc);
-                    $display("Pipeline [Request] PC");
+                    // $display("Pipeline [Request] PC");
                 end
                 default: begin 
                     let x <- rf.dbg_read(address);
@@ -394,7 +395,7 @@ module mkPipelined(RVIfc);
             responseFIFO.enq(writeData);
         end
 
-        $display("Pipeline [Request] ", operation, " ", id, " ", addr, " ", data);
+        // $display("Pipeline [Request] ", operation, " ", id, " ", addr, " ", data);
     endmethod
 
     method ActionValue#(ExchangeData) response(ComponentId id) if((doHalt && !doCanonicalize) || isCanonicalized);
@@ -403,7 +404,7 @@ module mkPipelined(RVIfc);
             out = responseFIFO.first();
             responseFIFO.deq();
         end
-        $display("Pipeline [Response] ", id, " ", out);
+        // $display("Pipeline [Response] ", id, " ", out);
         return zeroExtend(out);
     endmethod
 

@@ -1,3 +1,6 @@
+int getchar();
+int putchar(int c);
+
 int main() {
   char s[256];
   int i;

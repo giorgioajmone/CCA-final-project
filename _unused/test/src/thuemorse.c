@@ -1,3 +1,7 @@
+int getchar();
+int putchar(int c);
+
+
 int compter_uns(int x)
 {
     int res;

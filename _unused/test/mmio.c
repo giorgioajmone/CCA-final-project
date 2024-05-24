@@ -2,7 +2,7 @@
 int* PUT_ADDR = (int *)0xF000fff0;
 int* GET_ADDR = (int *)0xF000fff4;
 int* FINISH_ADDR = (int *)0xF000fff8;
-int* WAIT_ADDR = (int *)0xF000fffA;
+int* WAIT_ADDR = (int *)0xF000fffC;
 
 int getchar() {
   return *GET_ADDR;
@@ -28,13 +28,13 @@ void waitForSnapshot(){
   );
 
   // Write anything to the wait address. 
-  *WAIT_ADDR = 0;
+  *WAIT_ADDR = 'b';
 
   while (1) {
     // read the x10 value and put it in the result.
-    int result = 0;
+    volatile register int result = 0;
     __asm__ volatile(
-      "mv %0 x10 \n\t"
+      "mv %0, x10 \n\t"
       : "=r" (result)
     );
 

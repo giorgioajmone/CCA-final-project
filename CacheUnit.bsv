@@ -141,8 +141,8 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
     endmethod
 
     method Action dataReq(Bool is_write, Bit#(numLogLines) which_line, Vector#(numWords, Bit#(dataBits)) data) if(doHalt);
-        $display("CacheUnit: dataReq");
-        $display("CacheUnit: is_write = %0d, which_line = %0d, data = %0h", is_write, which_line, data);
+        // $display("CacheUnit: dataReq");
+        // $display("CacheUnit: is_write = %0d, which_line = %0d, data = %0h", is_write, which_line, data);
         let write_mask = ?;
         if (is_write) write_mask = ~0; else write_mask = 0;
 
@@ -153,7 +153,7 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
     endmethod
 
     method ActionValue#(Vector#(numWords, Bit#(dataBits))) dataResp if (doHalt);
-        $display("CacheUnit: dataResp");
+        // $display("CacheUnit: dataResp");
         Vector#(numWords, Bit#(dataBits)) resp = ?;
         for (Integer i = 0; i < valueOf(numWords); i = i + 1)
             resp[i] <- dataCache[i].portA.response.get;

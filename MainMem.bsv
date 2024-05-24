@@ -64,17 +64,17 @@ module mkMainMem(MainMem);
     // INSTRUMENTATION
     Reg#(Bool) doHalt <- mkReg(True);
 
-    FIFOF#(ExchangeData) responseFIFO <- mkBypassFIFOF;
+    FIFOF#(Bool) responseFIFO <- mkBypassFIFOF;
 
     rule deq if(!doHalt);
         let r <- bram.portA.response.get();
         dl.put(r);
     endrule    
 
-    rule waitResponse if(doHalt);
-        let r <- bram.portA.response.get();
-        responseFIFO.enq(r);
-    endrule 
+    // rule waitResponse if(doHalt);
+    //     let r <- bram.portA.response.get();
+    //     responseFIFO.enq(r);
+    // endrule 
 
     method Action put(MainMemReq req) if (!doHalt);
         bram.portA.request.put(BRAMRequest{
@@ -113,13 +113,14 @@ module mkMainMem(MainMem);
         end else begin
             bram.portA.request.put(BRAMRequest{write: unpack(1), responseOnWrite: True, address: address, datain: data});
         end
+        responseFIFO.enq(?);
     endmethod
 
-    method ActionValue#(ExchangeData) response(ComponentId id);
-        let out = 0;
+    method ActionValue#(ExchangeData) response(ComponentId id) if(doHalt);
+        ExchangeData out = signExtend(1'b1);
         if(responseFIFO.notEmpty()) begin
-            out = responseFIFO.first();
             responseFIFO.deq();
+            out <- bram.portA.response.get();
         end
         $display("MainMemory: Response", out);
         return zeroExtend(out);

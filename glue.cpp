@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <semaphore.h>
 #include <cstdint>
@@ -16,6 +17,7 @@
 
 using json = nlohmann::json;
 std::atomic_uint64_t atomic_integer = {0};
+std::atomic_uint64_t halt_flag = {0};
 
 #define CORE_ID 0
 #define REGISTER_FILE_ID 0
@@ -30,6 +32,12 @@ std::atomic_uint64_t atomic_integer = {0};
 
 #define READ false
 #define WRITE true
+
+static void halt();
+static void canonicalize();
+static void restart();
+static void exportSnapshot(std::ostream &s);
+static void request(bool readOrWrite, uint8_t id, const uint64_t addr, const bsvvector_Luint32_t_L16 data);
 
 static CoreRequestProxy *coreRequestProxy = 0;
 
@@ -59,26 +67,38 @@ public:
 
     virtual void response(const bsvvector_Luint32_t_L16 output) override {
         // copy the output to the receivedData buffer.
-        memcpy(receivedData, output, 16 * sizeof(uint32_t));
-        printf("[glue.cpp] Response received\n");
+        // memcpy(receivedData, output, 16 * sizeof(uint32_t));
+
+        for (int index = 0; index < 8; ++index) {
+            receivedData[8 - index - 1] = (uint64_t(output[2*index]) << 32) | uint64_t(output[2*index + 1]);
+        }
+
+        printf("[glue.cpp] Response received: ");
+        for(int i = 0; i < 8; i++){
+            printf("%016lx", receivedData[i]);
+        }
+        printf("\n");
+
+        // getchar();
 
         assert(atomic_integer.load() == 1);
         atomic_integer.fetch_sub(1);
     }
 
     virtual void requestMMIO(const uint64_t data) override {
-        fprintf(stderr, "MMIO RECEIVED: ");
         //fprintf(stderr, "%016lx", data);
         if((data >> 32) & 0x1)
             fprintf(stderr, "%d", static_cast<int>(data & 0xFFFFFFFF));
         else
             fprintf(stderr, "%c", static_cast<char>(data));
-        fprintf(stderr, "\n");
     }
 
     virtual void requestHalt(const int data) override {
         //TO DO when the fpga wants to halt
         printf("[glue.cpp] FPGA wants to halt\n");
+        assert(halt_flag.load() == 1);
+        halt_flag.fetch_sub(1);
+
     }
 
     CoreIndication(unsigned int id) : CoreIndicationWrapper(id) {}
@@ -111,11 +131,18 @@ static void restart() {
     while(atomic_integer.load() != 0);
 }
 
-static void request(bool readOrWrite, uint8_t id, const uint64_t addr, const bsvvector_Luint32_t_L16 data) {
+static void request(bool readOrWrite, uint8_t id, const uint64_t addr, const uint64_t data[8]) {
     assert(atomic_integer.load() == 0);
     atomic_integer.fetch_add(1);
 
-    coreRequestProxy->request(readOrWrite, id, addr, data);
+    uint32_t data_buffer[16] = {0};
+
+    for (int index = 0; index < 8; ++index) {
+        data_buffer[2*index] = (data[8 - index - 1] >> 32) & 0xFFFFFFFF;
+        data_buffer[2*index + 1] = data[8- index - 1] & 0xFFFFFFFF;
+    }
+
+    coreRequestProxy->request(readOrWrite, id, addr, data_buffer);
 
     while(atomic_integer.load() != 0);
 }
@@ -133,7 +160,7 @@ static json extractSpecificCache(uint8_t id, int log2SetCount, int log2WayCount)
         json set_results;
         // fetch the LRU bits.
         uint64_t lru_addr = 0x0 | (set << 2);
-        uint32_t fake_buffer[16] = {0};
+        uint64_t fake_buffer[8] = {0};
 
         request(READ, id, lru_addr, fake_buffer);
 
@@ -218,7 +245,7 @@ static void deserializeCache(const json& cache, uint8_t id) {
 
         uint64_t write_buffer[8] = {0};
         write_buffer[0] = lru;
-        request(WRITE, id, lru_addr, reinterpret_cast<uint32_t *>(write_buffer));  
+        request(WRITE, id, lru_addr, write_buffer);  
 
         auto lines = set_results["lines"];
         for (int way = 0; way < wayCount; ++way) {
@@ -242,7 +269,7 @@ static void deserializeCache(const json& cache, uint8_t id) {
 
             write_buffer[0] = tag_metadata;
 
-            request(WRITE, id, tag_addr, reinterpret_cast<uint32_t *>(write_buffer));
+            request(WRITE, id, tag_addr, write_buffer);
 
             auto data = way_result["data"];
             for (const auto& value : data) {
@@ -251,7 +278,7 @@ static void deserializeCache(const json& cache, uint8_t id) {
 
             // generate the address of updating data.
             uint64_t data_addr = 0x2 | (set << 2) | (way << (2 + log2SetCount));
-            request(WRITE, id, data_addr, reinterpret_cast<uint32_t *>(write_buffer));
+            request(WRITE, id, data_addr, write_buffer);
             
         }
     }
@@ -287,7 +314,7 @@ static std::array<json, 3> exportCache() {
 
 static void exportSnapshot(std::ostream &s){
     json snapshot;
-    uint32_t temporal_buffer[16] = {0}; 
+    uint64_t temporal_buffer[8] = {0}; 
 
     //PC
     std::cout << "PC" << std::endl;
@@ -301,14 +328,6 @@ static void exportSnapshot(std::ostream &s){
         snapshot["RegisterFile"].emplace_back(receivedData[0]);
     }
 
-    
-    //CACHE
-    std::cout << "Cache" << std::endl;
-    auto caches = exportCache();
-    snapshot["L1i"] = caches[0];
-    snapshot["L1d"] = caches[1];
-    snapshot["L2"] = caches[2];
-    
     //MAIN MEMORY
     std::cout << "MainMemory" << std::endl;
     for(uint64_t i = 0; i < MAIN_MEM_SIZE; i++){
@@ -317,11 +336,17 @@ static void exportSnapshot(std::ostream &s){
             snapshot["MainMem"][i].emplace_back(receivedData[j]);
         }
     }
+    
+    //CACHE
+    std::cout << "Cache" << std::endl;
+    auto caches = exportCache();
+    snapshot["L1i"] = caches[0];
+    snapshot["L1d"] = caches[1];
+    snapshot["L2"] = caches[2];
+    
 
     s << std::setw(4) << snapshot << std::endl;
     s.flush();
-
-    std::cout << "Restart" << std::endl;
 }
 
 static void importSnapshot(std::istream &s){
@@ -332,12 +357,12 @@ static void importSnapshot(std::istream &s){
 
     //PC
     write_buffer[0] = snapshot["PC"];
-    request(WRITE, CORE_ID, 0, reinterpret_cast<uint32_t *>(write_buffer));
+    request(WRITE, CORE_ID, 0, write_buffer);
 
     //RF
     for(uint64_t i = 1; i < RF_SIZE; i++){
         write_buffer[0] = snapshot["RegisterFile"][i-1];
-        request(WRITE, REGISTER_FILE_ID, i, reinterpret_cast<uint32_t *>(write_buffer));
+        request(WRITE, REGISTER_FILE_ID, i, write_buffer);
     }
 
     //MAIN MEMORY
@@ -346,13 +371,82 @@ static void importSnapshot(std::istream &s){
         for(int j = 0; j < 8; j++){
             write_buffer[j] = data[j];
         }
-        request(WRITE, MAIN_MEM_ID, i, reinterpret_cast<uint32_t *>(write_buffer));
+        request(WRITE, MAIN_MEM_ID, i, write_buffer);
     }
 
     // import L1i, L1d, L2 cache
     deserializeCache(snapshot["L1i"], L1I_ID);
     deserializeCache(snapshot["L1d"], L1D_ID);
     deserializeCache(snapshot["L2"], L2_ID);
+}
+
+void test1() {
+    restart();
+
+    while(halt_flag.load() == 1);
+
+    halt();
+    canonicalize();
+
+    std::ofstream ofs("SecondSnapshot.json", std::ofstream::out);
+    exportSnapshot(ofs);
+
+    uint64_t fake_buffer[8] = {0};
+    fake_buffer[0] = 1;
+
+    request(WRITE, REGISTER_FILE_ID, 10, fake_buffer);
+
+    restart();
+}
+
+void test2() {
+    // read the JSON file (SecondSnapshotAgain.json)
+    std::ifstream ifs("../SecondSnapshot.json", std::ifstream::in);
+    // import the snapshot to the server.
+    importSnapshot(ifs);
+    // Change the value of register 10 to 1.
+    uint64_t fake_buffer[8] = {0};
+    fake_buffer[0] = 1;
+    request(WRITE, REGISTER_FILE_ID, 10, fake_buffer);
+    // Restart the server.
+    restart();
+}
+
+void test3() {
+    std::ofstream ofs("ThirdSnapshot.json", std::ofstream::out);
+    exportSnapshot(ofs);
+    ofs.flush();
+    ofs.close();
+
+    std::ifstream ifs("ThirdSnapshot.json", std::ifstream::in);
+    importSnapshot(ifs);
+
+    restart();
+}
+
+void test4() {
+    restart();
+
+    while(halt_flag.load() == 1);
+
+    halt();
+    canonicalize();
+
+    std::ofstream ofs("ForthSnapshot.json", std::ofstream::out);
+    exportSnapshot(ofs);
+    ofs.flush();
+    ofs.close();
+
+    // load the snapshot back immediately.
+    std::ifstream ifs("ForthSnapshot.json", std::ifstream::in);
+    importSnapshot(ifs);
+
+    uint64_t fake_buffer[8] = {0};
+    fake_buffer[0] = 1;
+
+    request(WRITE, REGISTER_FILE_ID, 10, fake_buffer);
+
+    restart();
 }
 
 int main(int argc, const char **argv)
@@ -364,6 +458,7 @@ int main(int argc, const char **argv)
     coreRequestProxy = new CoreRequestProxy(IfcNames_CoreRequestS2H);
 
     atomic_integer.store(0); // now it is one.
+    halt_flag.store(1);
 
 
     int status = setClockFrequency(0, requestedFrequency, &actualFrequency);
@@ -372,17 +467,10 @@ int main(int argc, const char **argv)
 	    (double)actualFrequency * 1.0e-6,
 	    status, (status != 0) ? errno : 0);
 
-    std::cout << "File" << std::endl;
-
-
-    //std::ofstream ofs("FirstSnapshot.json", std::ofstream::out);
-    std::ifstream ifs("FirstSnapshot.json", std::ifstream::in);
-    std::cout << "Snapshot" << std::endl;
+    // test1();
+    test2();
+    // test1();
     
-    //exportSnapshot(ofs);
-    importSnapshot(ifs);
-    restart();
-
     while(true);
     return 0;
 }
