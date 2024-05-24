@@ -34,7 +34,8 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
             Add#(addrcpuBits, TSub#(0, TLog#(numWords)), addrmemBits),
             Add#(a__, TSub#(numWays, 1), 512),
             Add#(b__, TAdd#(TSub#(TSub#(addrcpuBits, TLog#(numBanks)),TAdd#(TAdd#(TLog#(numWords), numLogLines), 0)), 2), 512),
-            Add#(c__, datamemBits, 512)
+            Add#(c__, datamemBits, 512),
+            Add#(d__, 1, datacpuBits)
             // Alias#(CacheUnitResp#(Bit#(datacpuBits), CUTag#(addrcpuBits, numWords, numLogLines, numBanks), LineState, numWords), GenericCUResp),
             // Alias#(GenericParsedAddress, ParsedAddress#(addrcpuBits, numWords, numLogLines, numBanks))
         );
@@ -222,12 +223,12 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
         endaction
     endfunction: writeTagAndStatus
 
-    FIFO#(Bit#(numLogLines)) read_data_token <- mkBypassFIFO();
+    FIFO#(Bit#(TLog#(numWays))) read_data_token <- mkBypassFIFO();
 
     function Action readData(Bit#(numLogLines) set, Bit#(TLog#(numWays)) way);
         action
             cache[way].dataReq(False, set, ?);
-            read_data_token.enq(?);
+            read_data_token.enq(way);
         endaction
     endfunction: readData
 
@@ -327,7 +328,7 @@ module mkGenericCache(GenericCache#(addrcpuBits, datacpuBits, addrmemBits, datam
             endcase
         end
         $display("GenericCache : Metadata requested: ", addr[1:0]);
-        request_fifo.enq(addr[1:0]);
+        request_fifo.enq(addr[1:0]); // TODO: deadlock here. Write operation should not call the 
     endmethod
 
     method ActionValue#(ExchangeData) response(ComponentId id) if (doHalt);
