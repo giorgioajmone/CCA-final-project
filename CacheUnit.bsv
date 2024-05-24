@@ -32,7 +32,8 @@ module mkCacheUnit(CacheUnit#(dataBits, cuStatus, addrBits, numWords, numLogLine
                 provisos (
                     Bits#(cuStatus, cuStatusBits), 
                     Valid#(cuStatus), Dirty#(cuStatus),
-                    Mul#(TDiv#(dataBits, TDiv#(dataBits, 8)), TDiv#(dataBits, 8), dataBits)
+                    Mul#(TDiv#(dataBits, TDiv#(dataBits, 8)), TDiv#(dataBits, 8), dataBits),
+                    Add#(a__, 1, dataBits)
                     // Mul#(TDiv#(dataBits, 4), 4, dataBits)
                 );
     BRAM_Configure cfg = defaultValue;
