@@ -16,8 +16,9 @@
 #include <atomic>
 
 using json = nlohmann::json;
-std::atomic_uint64_t atomic_integer = {0};
+std::atomic_uint64_t wait_for_hardware = {0};
 std::atomic_uint64_t halt_flag = {0};
+std::atomic_uint64_t quit_flag = {0};
 
 #define CORE_ID 0
 #define REGISTER_FILE_ID 0
@@ -48,21 +49,21 @@ public:
     virtual void halted() override {
         printf("[glue.cpp] Halted\n");
 
-        assert(atomic_integer.load() == 1);
-        atomic_integer.fetch_sub(1);
+        assert(wait_for_hardware.load() == 1);
+        wait_for_hardware.fetch_sub(1);
     }
     virtual void canonicalized() override {
         printf("[glue.cpp] Canonicalized\n");
 
-        assert(atomic_integer.load() == 1);
-        atomic_integer.fetch_sub(1);
+        assert(wait_for_hardware.load() == 1);
+        wait_for_hardware.fetch_sub(1);
 
     }
     virtual void restarted() override {
         printf("[glue.cpp] Restarted\n");
 
-        assert(atomic_integer.load() == 1);
-        atomic_integer.fetch_sub(1);
+        assert(wait_for_hardware.load() == 1);
+        wait_for_hardware.fetch_sub(1);
     }
 
     virtual void response(const bsvvector_Luint32_t_L16 output) override {
@@ -81,8 +82,8 @@ public:
 
         // getchar();
 
-        assert(atomic_integer.load() == 1);
-        atomic_integer.fetch_sub(1);
+        assert(wait_for_hardware.load() == 1);
+        wait_for_hardware.fetch_sub(1);
     }
 
     virtual void requestMMIO(const uint64_t data) override {
@@ -102,7 +103,11 @@ public:
                     fprintf(stderr, " [0;31mFAIL[0m (%0d)", extra_data);
                 }
                 puts("");
+
+                quit_flag.fetch_sub(1);
             }
+
+            
         }
     }
 
@@ -118,35 +123,35 @@ public:
 };
 
 static void halt() {
-    assert(atomic_integer.load() == 0);
-    atomic_integer.fetch_add(1);
+    assert(wait_for_hardware.load() == 0);
+    wait_for_hardware.fetch_add(1);
 
     coreRequestProxy->halt();
 
-    while(atomic_integer.load() != 0);
+    while(wait_for_hardware.load() != 0);
 }
 
 static void canonicalize() {
-    assert(atomic_integer.load() == 0);
-    atomic_integer.fetch_add(1);
+    assert(wait_for_hardware.load() == 0);
+    wait_for_hardware.fetch_add(1);
 
     coreRequestProxy->canonicalize();
 
-    while(atomic_integer.load() != 0);
+    while(wait_for_hardware.load() != 0);
 }
 
 static void restart() {
-    assert(atomic_integer.load() == 0);
-    atomic_integer.fetch_add(1);
+    assert(wait_for_hardware.load() == 0);
+    wait_for_hardware.fetch_add(1);
 
     coreRequestProxy->restart();
 
-    while(atomic_integer.load() != 0);
+    while(wait_for_hardware.load() != 0);
 }
 
 static void request(bool readOrWrite, uint8_t id, const uint64_t addr, const uint64_t data[8]) {
-    assert(atomic_integer.load() == 0);
-    atomic_integer.fetch_add(1);
+    assert(wait_for_hardware.load() == 0);
+    wait_for_hardware.fetch_add(1);
 
     uint32_t data_buffer[16] = {0};
 
@@ -157,7 +162,7 @@ static void request(bool readOrWrite, uint8_t id, const uint64_t addr, const uin
 
     coreRequestProxy->request(readOrWrite, id, addr, data_buffer);
 
-    while(atomic_integer.load() != 0);
+    while(wait_for_hardware.load() != 0);
 }
 
 static json extractSpecificCache(uint8_t id, int log2SetCount, int log2WayCount) {
@@ -367,7 +372,6 @@ static void exportSnapshot(std::ostream &s){
     
 
     s << std::setw(4) << snapshot << std::endl;
-    s.flush();
 }
 
 static void importSnapshot(std::istream &s){
@@ -421,7 +425,7 @@ void test1() {
     halt();
     canonicalize();
 
-    std::ofstream ofs("SecondSnapshot.json", std::ofstream::out);
+    std::ofstream ofs("../snapshot/SecondSnapshot.json", std::ofstream::out);
     exportSnapshot(ofs);
 
     uint64_t fake_buffer[8] = {0};
@@ -434,7 +438,7 @@ void test1() {
 
 void test2() {
     // read the JSON file (SecondSnapshotAgain.json)
-    std::ifstream ifs("../SecondSnapshot.json", std::ifstream::in);
+    std::ifstream ifs("../snapshot/SecondSnapshot.json", std::ifstream::in);
     // import the snapshot to the server.
     importSnapshot(ifs);
     // Change the value of register 10 to 1.
@@ -446,12 +450,12 @@ void test2() {
 }
 
 void test3() {
-    std::ofstream ofs("ThirdSnapshot.json", std::ofstream::out);
+    std::ofstream ofs("../snapshot/ThirdSnapshot.json", std::ofstream::out);
     exportSnapshot(ofs);
     ofs.flush();
     ofs.close();
 
-    std::ifstream ifs("ThirdSnapshot.json", std::ifstream::in);
+    std::ifstream ifs("../snapshot/ThirdSnapshot.json", std::ifstream::in);
     importSnapshot(ifs);
 
     restart();
@@ -465,13 +469,13 @@ void test4() {
     halt();
     canonicalize();
 
-    std::ofstream ofs("ForthSnapshot.json", std::ofstream::out);
+    std::ofstream ofs("../snapshot/ForthSnapshot.json", std::ofstream::out);
     exportSnapshot(ofs);
     ofs.flush();
     ofs.close();
 
     // load the snapshot back immediately.
-    std::ifstream ifs("ForthSnapshot.json", std::ifstream::in);
+    std::ifstream ifs("../snapshot/ForthSnapshot.json", std::ifstream::in);
     importSnapshot(ifs);
 
     uint64_t fake_buffer[8] = {0};
@@ -484,10 +488,10 @@ void test4() {
 
 void test5() {
     // read the JSON file (SecondSnapshotAgain.json)
-    std::ifstream ifs("../SecondSnapshot.json", std::ifstream::in);
+    std::ifstream ifs("../snapshot/SecondSnapshot.json", std::ifstream::in);
     // import the snapshot to the server.
     importSnapshot(ifs);
-    std::ofstream ofs("SecondSnapshotComparison.json", std::ofstream::out);
+    std::ofstream ofs("../snapshot/SecondSnapshotComparison.json", std::ofstream::out);
     exportSnapshot(ofs);
     ofs.flush();
     ofs.close();
@@ -499,6 +503,32 @@ void test5() {
     restart();
 }
 
+void test6() {
+    restart();
+
+    // fflush(stdin);
+    getchar(); // remove the enter
+    getchar();
+
+    halt();
+    canonicalize();
+
+    std::ofstream ofs("../snapshot/SixthSnapshot.json", std::ofstream::out);
+    exportSnapshot(ofs);
+    ofs.flush();
+    ofs.close();
+
+    restart();
+}
+
+void test7() {
+    // load the snapshot of SixthSnapshot.json and restart.
+    std::ifstream ifs("../snapshot/SixthSnapshot.json", std::ifstream::in);
+    importSnapshot(ifs);
+
+    restart();
+}
+
 int main(int argc, const char **argv)
 {
     long actualFrequency = 0;
@@ -507,8 +537,9 @@ int main(int argc, const char **argv)
     CoreIndication coreIndication(IfcNames_CoreIndicationH2S);
     coreRequestProxy = new CoreRequestProxy(IfcNames_CoreRequestS2H);
 
-    atomic_integer.store(0); // now it is one.
+    wait_for_hardware.store(0);
     halt_flag.store(1);
+    quit_flag.store(1);
 
 
     int status = setClockFrequency(0, requestedFrequency, &actualFrequency);
@@ -517,24 +548,43 @@ int main(int argc, const char **argv)
 	    (double)actualFrequency * 1.0e-6,
 	    status, (status != 0) ? errno : 0);
 
-    printf("Which test to run? (1, 2, 3, 4, 5): \n");
 
-    int which_to_run = getchar() - '0';
+    // s[ave], l[oad], h[alt], r[estart], c[anonicalize], q[uit]
 
-    if (which_to_run == 1) {
-        test1();
-    } else if (which_to_run == 2) {
-        test2();
-    } else if (which_to_run == 3) {
-        test3();
-    } else if (which_to_run == 4) {
-        test4();
-    } else if (which_to_run == 5) {
-        test5();
-    } else {
-        assert(false);
+    std::string command;
+    while (true) {
+        std::cout << "Enter command (s[ave], l[oad], h[alt], r[estart], c[anonicalize], q[uit]): ";
+        std::cin >> command;
+        if (command == "s" || command == "save") {
+            std::string filePath;
+            std::cout << "Enter the file path to save: ";
+            std::cin >> filePath;
+
+            std::ofstream file(filePath);
+            exportSnapshot(file);
+            file.flush();
+            file.close();
+        } else if (command == "l" || command == "load") {
+            std::string filePath;
+            std::cout << "Enter the file path to load: ";
+            std::cin >> filePath;
+
+            std::ifstream file(filePath);
+            importSnapshot(file);
+            file.close();
+
+        } else if (command == "h" || command == "halt") {
+            halt();
+        } else if (command == "r" || command == "restart") {
+            restart();
+        } else if (command == "c" || command == "canonicalize") {
+            canonicalize();
+        } else if (command == "q" || command == "quit") {
+            break;
+        } else {
+            std::cout << "Unknown command. Please try again.\n";
+        }
     }
     
-    while(true);
     return 0;
 }

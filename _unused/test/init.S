@@ -49,6 +49,13 @@ _start:
 
   call exit
 1:
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
   j 1b
 
 #.section ".tdata.begin"

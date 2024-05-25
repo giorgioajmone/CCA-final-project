@@ -35,7 +35,6 @@ module mkCore(CoreInterface);
     FIFO#(Bit#(33)) mmio2host <- mkFIFO;
     FIFO#(Bool) haltFIFO <- mkFIFO;
 
-
     rule requestI;
         let req <- rv_core.getIReq;
         if (debug) $display("Get IReq", fshow(req));
