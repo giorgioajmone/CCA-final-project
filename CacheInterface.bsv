@@ -158,11 +158,11 @@ module mkCacheInterface(CacheInterface);
             3: mainMem.request(operation, id, addr, data);
             default: dynamicAssert(False, "CacheInterface.request: Invalid component ID");
         endcase
-        $display("CacheInterface: Requesting from %d", id);
+        // $display("CacheInterface: Requesting from %d", id);
     endmethod
 
     method ActionValue#(ExchangeData) response(ComponentId id);
-        $display("CacheInterface: Responding to %d", id);
+        // $display("CacheInterface: Responding to %d", id);
         case (id)
             0: begin
                 let data <- cacheI.response(id);

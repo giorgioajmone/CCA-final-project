@@ -106,7 +106,7 @@ module mkMainMem(MainMem);
     endmethod      
 
     method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data) if(doHalt);
-        $display("MainMem: Requesting %d %d %d %d", operation, id, addr, data);
+        // $display("MainMem: Requesting display%d %d %d %d", operation, id, addr, data);
         let address = addr[valueOf(LineAddrLength)-1:0];
         if(operation == 0) begin
             bram.portA.request.put(BRAMRequest{write: unpack(0), responseOnWrite: True, address: address, datain: data});
@@ -122,7 +122,7 @@ module mkMainMem(MainMem);
             responseFIFO.deq();
             out <- bram.portA.response.get();
         end
-        $display("MainMemory: Response", out);
+        // $display("MainMemory: Response", out);
         return zeroExtend(out);
     endmethod
     

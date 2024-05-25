@@ -30,15 +30,11 @@ module mkCore(CoreInterface);
     FIFO#(Mem) dreq <- mkFIFO;
     FIFO#(Mem) mmioreq <- mkFIFO;
     let debug = False;
-    Reg#(Bit#(32)) cycle_count <- mkReg(0);
 
     Reg#(Bool) doCanonicalize <- mkReg(False);
     FIFO#(Bit#(33)) mmio2host <- mkFIFO;
     FIFO#(Bool) haltFIFO <- mkFIFO;
 
-    rule tic;
-	    cycle_count <= cycle_count + 1;
-    endrule
 
     rule requestI;
         let req <- rv_core.getIReq;
@@ -77,38 +73,16 @@ module mkCore(CoreInterface);
         if (debug) $display("Get MMIOReq", fshow(req));
         if (req.byte_en == 'hf) begin
             if (req.addr == 'hf000_fff4) begin
-                // Write integer to STDERR
-                
-                mmio2host.enq({1'b1,req.data});
-                //$display("%0d", req.data);
-                
-                //$fwrite(stderr, "%0d", req.data);
-                //$fflush(stderr);
+                mmio2host.enq({1'b1,req.data}); // print integer
             end
         end
         if (req.addr ==  'hf000_fff0) begin
-            // Writing to STDERR
-            
-            mmio2host.enq(zeroExtend(req.data[7:0]));
-            //$display("%c", req.data[7:0]);
-            
-            //$fwrite(stderr, "%c", req.data[7:0]);
-            //$fflush(stderr);
+            mmio2host.enq(zeroExtend(req.data[7:0])); // print character
         end else if (req.addr == 'hf000_fff8) begin
-            $display("RAN CYCLES", cycle_count);
-            // Exiting Simulation
-            if (req.data == 0) begin
-                //$display("  [0;32mPASS[0m");
-                $fdisplay(stderr, "  [0;32mPASS[0m");
-            end else begin
-                $fdisplay(stderr, "  [0;31mFAIL[0m (%0d)", req.data);
-                //$display("  [0;31mFAIL[0m (%0d)", req.data);
-            end
-            $fflush(stderr);
-            //$finish;
+            Bit#(32) processed_data = (req.data << 1) | 32'b1;
+            mmio2host.enq({1'b0, processed_data << 8}); // print whether the test is passed or failed
         end else if(req.addr == 'hf000_fffc && req.byte_en != 0) begin
-            $display("MMIO HALT");
-            haltFIFO.enq(True);
+            haltFIFO.enq(?);
         end
         mmioreq.enq(req);
     endrule

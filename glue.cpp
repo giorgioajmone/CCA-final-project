@@ -73,11 +73,11 @@ public:
             receivedData[8 - index - 1] = (uint64_t(output[2*index]) << 32) | uint64_t(output[2*index + 1]);
         }
 
-        printf("[glue.cpp] Response received: ");
-        for(int i = 0; i < 8; i++){
-            printf("%016lx", receivedData[i]);
-        }
-        printf("\n");
+        // printf("[glue.cpp] Response received: ");
+        // for(int i = 0; i < 8; i++){
+        //     printf("%016lx", receivedData[i]);
+        // }
+        // printf("\n");
 
         // getchar();
 
@@ -87,10 +87,23 @@ public:
 
     virtual void requestMMIO(const uint64_t data) override {
         //fprintf(stderr, "%016lx", data);
-        if((data >> 32) & 0x1)
+        if((data >> 32) & 0x1) {
             fprintf(stderr, "%d", static_cast<int>(data & 0xFFFFFFFF));
-        else
-            fprintf(stderr, "%c", static_cast<char>(data));
+        } else {
+            bool is_char = (data >> 8) == 0;
+            if (is_char) {
+                fprintf(stderr, "%c", static_cast<char>(data));
+            } else {
+                // extra data is here
+                int extra_data = data >> 9;
+                if (extra_data == 0) {
+                    fprintf(stderr, " [0;32mPASS[0m");
+                } else {
+                    fprintf(stderr, " [0;31mFAIL[0m (%0d)", extra_data);
+                }
+                puts("");
+            }
+        }
     }
 
     virtual void requestHalt(const int data) override {
@@ -210,8 +223,6 @@ static json extractSpecificCache(uint8_t id, int log2SetCount, int log2WayCount)
             }
 
             set_results["lines"].emplace_back(way_result);
-
-            std::cout << "NEXT ITEM OF CACHE" << std::endl;
         }
 
         cache["data"].emplace_back(set_results);
@@ -318,33 +329,34 @@ static void exportSnapshot(std::ostream &s){
     uint64_t temporal_buffer[8] = {0}; 
 
     //PC
-    std::cout << "PC" << std::endl;
+    std::cout << "Snapshot PC" << std::endl;
     request(READ, CORE_ID, 0, temporal_buffer);
     snapshot["PC"] = receivedData[0];
     
     //RF
-    std::cout << "RF" << std::endl;
     for(uint64_t i = 1; i < RF_SIZE; i++){
         request(READ, REGISTER_FILE_ID, i, temporal_buffer);
         snapshot["RegisterFile"].emplace_back(receivedData[0]);
 
-        printf("Snapshot Register Status: %d/32 \r", i);
-
-        puts("");
+        printf("Snapshot Register Status: %lu/31 \r", i);
     }
 
+    puts("");
+
+
     //MAIN MEMORY
-    std::cout << "MainMemory" << std::endl;
     for(uint64_t i = 0; i < MAIN_MEM_SIZE; i++){
         request(READ, MAIN_MEM_ID, i, temporal_buffer);
         for (int j = 0; j < 8; j++) {
             snapshot["MainMem"][i].emplace_back(receivedData[j]);
         }
 
-        printf("Snapshot Memory Status: %d/65536 \r", i);
+        printf("Snapshot Memory Status: %lu/65536 \r", i);
 
-        puts("");
     }
+
+    puts("");
+
     
     //CACHE
     std::cout << "Cache" << std::endl;
@@ -374,10 +386,12 @@ static void importSnapshot(std::istream &s){
         write_buffer[0] = snapshot["RegisterFile"][i-1];
         request(WRITE, REGISTER_FILE_ID, i, write_buffer);
 
-        printf("Load Register Status: %d/32 \r", i);
+        printf("Load Register Status: %lu/31 \r", i);
 
-        puts("");
     }
+
+    puts("");
+
 
     //MAIN MEMORY
     for(uint64_t i = 0; i < MAIN_MEM_SIZE; i++){
@@ -387,10 +401,11 @@ static void importSnapshot(std::istream &s){
         }
         request(WRITE, MAIN_MEM_ID, i, write_buffer);
 
-        printf("Load Memory Status: %d/65536 \r", i);
-
-        puts("");
+        printf("Load Memory Status: %lu/65536 \r", i);
     }
+
+    puts("");
+
 
     // import L1i, L1d, L2 cache
     deserializeCache(snapshot["L1i"], L1I_ID);
