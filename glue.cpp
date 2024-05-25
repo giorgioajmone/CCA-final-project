@@ -272,9 +272,10 @@ static void deserializeCache(const json& cache, uint8_t id) {
             request(WRITE, id, tag_addr, write_buffer);
 
             auto data = way_result["data"];
-            for (const auto& value : data) {
-                write_buffer[0] = value;
+            for (int i = 0; i < 8; ++i) {
+                write_buffer[i] = data[i];
             }
+            
 
             // generate the address of updating data.
             uint64_t data_addr = 0x2 | (set << 2) | (way << (2 + log2SetCount));
@@ -326,6 +327,10 @@ static void exportSnapshot(std::ostream &s){
     for(uint64_t i = 1; i < RF_SIZE; i++){
         request(READ, REGISTER_FILE_ID, i, temporal_buffer);
         snapshot["RegisterFile"].emplace_back(receivedData[0]);
+
+        printf("Snapshot Register Status: %d/32 \r", i);
+
+        puts("");
     }
 
     //MAIN MEMORY
@@ -335,6 +340,10 @@ static void exportSnapshot(std::ostream &s){
         for (int j = 0; j < 8; j++) {
             snapshot["MainMem"][i].emplace_back(receivedData[j]);
         }
+
+        printf("Snapshot Memory Status: %d/65536 \r", i);
+
+        puts("");
     }
     
     //CACHE
@@ -359,10 +368,15 @@ static void importSnapshot(std::istream &s){
     write_buffer[0] = snapshot["PC"];
     request(WRITE, CORE_ID, 0, write_buffer);
 
+
     //RF
     for(uint64_t i = 1; i < RF_SIZE; i++){
         write_buffer[0] = snapshot["RegisterFile"][i-1];
         request(WRITE, REGISTER_FILE_ID, i, write_buffer);
+
+        printf("Load Register Status: %d/32 \r", i);
+
+        puts("");
     }
 
     //MAIN MEMORY
@@ -372,6 +386,10 @@ static void importSnapshot(std::istream &s){
             write_buffer[j] = data[j];
         }
         request(WRITE, MAIN_MEM_ID, i, write_buffer);
+
+        printf("Load Memory Status: %d/65536 \r", i);
+
+        puts("");
     }
 
     // import L1i, L1d, L2 cache
@@ -449,6 +467,23 @@ void test4() {
     restart();
 }
 
+void test5() {
+    // read the JSON file (SecondSnapshotAgain.json)
+    std::ifstream ifs("../SecondSnapshot.json", std::ifstream::in);
+    // import the snapshot to the server.
+    importSnapshot(ifs);
+    std::ofstream ofs("SecondSnapshotComparison.json", std::ofstream::out);
+    exportSnapshot(ofs);
+    ofs.flush();
+    ofs.close();
+    // Change the value of register 10 to 1.
+    uint64_t fake_buffer[8] = {0};
+    fake_buffer[0] = 1;
+    request(WRITE, REGISTER_FILE_ID, 10, fake_buffer);
+    // Restart the server.
+    restart();
+}
+
 int main(int argc, const char **argv)
 {
     long actualFrequency = 0;
@@ -467,9 +502,23 @@ int main(int argc, const char **argv)
 	    (double)actualFrequency * 1.0e-6,
 	    status, (status != 0) ? errno : 0);
 
-    // test1();
-    test2();
-    // test1();
+    printf("Which test to run? (1, 2, 3, 4, 5): \n");
+
+    int which_to_run = getchar() - '0';
+
+    if (which_to_run == 1) {
+        test1();
+    } else if (which_to_run == 2) {
+        test2();
+    } else if (which_to_run == 3) {
+        test3();
+    } else if (which_to_run == 4) {
+        test4();
+    } else if (which_to_run == 5) {
+        test5();
+    } else {
+        assert(false);
+    }
     
     while(true);
     return 0;

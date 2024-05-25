@@ -41,7 +41,7 @@ _start:
   li  x30,0
   li  x31,0
 
-  li sp, 0xFFFFFF0
+  li sp, 0x3FFFF0
 
   call main
 
