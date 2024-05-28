@@ -4,7 +4,7 @@ import SpecialFIFOs::*;
 import RegFile::*;
 import RVUtil::*;
 import Vector::*;
-import KonataHelper::*;
+// import KonataHelper::*;
 import Printf::*;
 import Ehr::*;
 import RegisterFile::*;
@@ -55,7 +55,7 @@ endfunction
 typedef struct { Bit#(32) pc;
                  Bit#(32) ppc;
                  Bit#(1) epoch; 
-                 KonataId k_id; // <- This is a unique identifier per instructions, for logging purposes
+                //  KonataId k_id; // <- This is a unique identifier per instructions, for logging purposes
              } F2D deriving (Eq, FShow, Bits);
 
 typedef struct { 
@@ -65,7 +65,7 @@ typedef struct {
     Bit#(1) epoch;
     Bit#(32) rv1; 
     Bit#(32) rv2; 
-    KonataId k_id; // <- This is a unique identifier per instructions, for logging purposes
+    // KonataId k_id; // <- This is a unique identifier per instructions, for logging purposes
     } D2E deriving (Eq, FShow, Bits);
 
 typedef struct { 
@@ -73,7 +73,7 @@ typedef struct {
     Bit#(32) data;
     DecodedInst dinst;
     Bool squashed;
-    KonataId k_id; // <- This is a unique identifier per instructions, for logging purposes
+    // KonataId k_id; // <- This is a unique identifier per instructions, for logging purposes
 } E2W deriving (Eq, FShow, Bits);
 
 // writeback < execute < fetch < decode
@@ -90,11 +90,11 @@ module mkPipelined(RVIfc);
     // Code to support Konata visualization
     String dumpFile = "output.log" ;
     let lfh <- mkReg(InvalidFile);
-    Reg#(KonataId) fresh_id <- mkReg(0);
-    Reg#(KonataId) commit_id <- mkReg(0);
+    // Reg#(KonataId) fresh_id <- mkReg(0);
+    // Reg#(KonataId) commit_id <- mkReg(0);
 
-    FIFO#(KonataId) retired <- mkFIFO;
-    FIFO#(KonataId) squashed <- mkFIFO;
+    // FIFO#(KonataId) retired <- mkFIFO;
+    // FIFO#(KonataId) squashed <- mkFIFO;
 
     // Pipeline registers
     FIFOF#(F2D) f2d <- mkFIFOF;
@@ -127,7 +127,7 @@ module mkPipelined(RVIfc);
             $fwrite(f, "Kanata\t0004\nC=\t1\n");
             starting <= False;
         end
-        konataTic(lfh);
+        // konataTic(lfh);
     endrule
   
     rule fetch if (!starting && (!doHalt || (doCanonicalize && (exception.notEmpty || misprediction.notEmpty))) && !isCanonicalized);
@@ -150,10 +150,10 @@ module mkPipelined(RVIfc);
             epoch = ~epoch_fetch[0];
         end
         pc <= pc_predicted;
-        let iid <- fetch1Konata(lfh, fresh_id, 0);
-        labelKonataLeft(lfh, iid, $format("0x%x: ", pc_fetched));
+        // let iid <- fetch1Konata(lfh, fresh_id, 0);
+        // labelKonataLeft(lfh, iid, $format("0x%x: ", pc_fetched));
         
-        f2d.enq(F2D{ pc: pc_fetched, ppc: pc_predicted, epoch: epoch, k_id: iid});
+        f2d.enq(F2D{ pc: pc_fetched, ppc: pc_predicted, epoch: epoch});
         toImem.enq(Mem{ byte_en: 0, addr: pc_fetched, data: 0});
 
         if (debug) $display("[Fetch] ", $format("0x%x", pc_fetched));
@@ -163,13 +163,13 @@ module mkPipelined(RVIfc);
         let f = f2d.first();
         let instr = fromImem.first();
         let dinst = decodeInst(instr.data);
-        let current_id = f.k_id;
-        decodeKonata(lfh, current_id);
-        labelKonataLeft(lfh, current_id, $format("DASM(%x)", instr.data));
+        // let current_id = f.k_id;
+        // decodeKonata(lfh, current_id);
+        // labelKonataLeft(lfh, current_id, $format("DASM(%x)", instr.data));
         if (f.epoch != epoch_fetch[1] || !dinst.legal) begin
             f2d.deq();
             fromImem.deq();
-            d2e.enq(D2E{ dinst: dinst, pc: f.pc, ppc: f.ppc, epoch: f.epoch, rv1: 0, rv2: 0, k_id: f.k_id});
+            d2e.enq(D2E{ dinst: dinst, pc: f.pc, ppc: f.ppc, epoch: f.epoch, rv1: 0, rv2: 0});
         end
         else begin
             let rs1_idx = dinst.valid_rs1 ? getInstFields(instr.data).rs1 : 0;
@@ -180,7 +180,7 @@ module mkPipelined(RVIfc);
                 if (dinst.valid_rd) scoreboard[getInstFields(instr.data).rd][1] <= 1;
                 f2d.deq();
                 fromImem.deq();
-                d2e.enq(D2E{ dinst: dinst, pc: f.pc, ppc: f.ppc, epoch: f.epoch, rv1: rs1, rv2: rs2, k_id: f.k_id});
+                d2e.enq(D2E{ dinst: dinst, pc: f.pc, ppc: f.ppc, epoch: f.epoch, rv1: rs1, rv2: rs2});
             end
         end
     endrule
@@ -189,15 +189,15 @@ module mkPipelined(RVIfc);
         let d = d2e.first();
         d2e.deq();
         let dInst = d.dinst;
-        let current_id = d.k_id;
+        // let current_id = d.k_id;
         let rv1 = d.rv1;
         let rv2 = d.rv2;
         let e_pc = d.pc;
-        if (debug) $display("[Execute] ", fshow(dInst));
-            executeKonata(lfh, current_id);
+        // if (debug) $display("[Execute] ", fshow(dInst));
+            // executeKonata(lfh, current_id);
         if (d.epoch != epoch_execute[1]) begin
-            squashed.enq(current_id);
-            e2w.enq(E2W{ mem_business: MemBusiness{isUnsigned: unpack(0), size: unpack(0), offset: unpack(0), mmio: False}, data: unpack(0), dinst: dInst, squashed: True, k_id: current_id});
+            // squashed.enq(current_id);
+            e2w.enq(E2W{ mem_business: MemBusiness{isUnsigned: unpack(0), size: unpack(0), offset: unpack(0), mmio: False}, data: unpack(0), dinst: dInst, squashed: True});
         end
         else begin
             let imm = getImmediate(dInst);
@@ -226,23 +226,23 @@ module mkPipelined(RVIfc);
                 if (isMMIO(addr)) begin 
                     if (debug) $display("[Execute] MMIO", fshow(req));
                     toMMIO.enq(req);
-                    labelKonataLeft(lfh,current_id, $format(" (MMIO)", fshow(req)));
+                    // labelKonataLeft(lfh,current_id, $format(" (MMIO)", fshow(req)));
                     mmio = True;
                 end else begin 
-                    labelKonataLeft(lfh,current_id, $format(" (MEM)", fshow(req)));
+                    // labelKonataLeft(lfh,current_id, $format(" (MEM)", fshow(req)));
                     toDmem.enq(req);
                 end
             end
             else if (isControlInst(dInst)) begin
-                labelKonataLeft(lfh,current_id, $format(" (CTRL)"));
+                // labelKonataLeft(lfh,current_id, $format(" (CTRL)"));
                 data = e_pc + 4;
             end else begin 
-                labelKonataLeft(lfh,current_id, $format(" (ALU)"));
+                // labelKonataLeft(lfh,current_id, $format(" (ALU)"));
             end
             let controlResult = execControl32(dInst.inst, rv1, rv2, imm, e_pc);
             let nextPc = controlResult.nextPC;
             let mem_business = MemBusiness { isUnsigned : unpack(isUnsigned), size : size, offset : offset, mmio: mmio};
-            e2w.enq(E2W{ mem_business: mem_business, data: data, dinst: dInst, squashed: False, k_id: current_id});
+            e2w.enq(E2W{ mem_business: mem_business, data: data, dinst: dInst, squashed: False});
             if (nextPc != d.ppc) begin
                 misprediction.enq(nextPc);
                 epoch_execute[1] <= ~epoch_execute[1];
@@ -254,11 +254,11 @@ module mkPipelined(RVIfc);
         let e = e2w.first;
         e2w.deq();
         let dInst = e.dinst;
-        let current_id = e.k_id;
+        // let current_id = e.k_id;
         let data = e.data;
         let mem_business = e.mem_business;
         let fields = getInstFields(dInst.inst);
-        writebackKonata(lfh,current_id);
+        // writebackKonata(lfh,current_id);
         if (e.squashed) begin
             if (debug) $display("[Writeback] Squashed", fshow(dInst));
             if (dInst.valid_rd) begin
@@ -267,7 +267,7 @@ module mkPipelined(RVIfc);
             end
         end
         else begin
-            retired.enq(current_id);
+            // retired.enq(current_id);
             if (isMemoryInst(dInst)) begin
                 let resp = ?;
                 if (mem_business.mmio) begin 
@@ -309,17 +309,17 @@ module mkPipelined(RVIfc);
 
 	// ADMINISTRATION:
 
-    rule administrative_konata_commit;
-        retired.deq();
-        let f = retired.first();
-        commitKonata(lfh, f, commit_id);
-	endrule
+    // rule administrative_konata_commit;
+    //     retired.deq();
+    //     let f = retired.first();
+    //     commitKonata(lfh, f, commit_id);
+	// endrule
 		
-	rule administrative_konata_flush;
-        squashed.deq();
-        let f = squashed.first();
-        squashKonata(lfh, f);
-	endrule
+	// rule administrative_konata_flush;
+    //     squashed.deq();
+    //     let f = squashed.first();
+    //     squashKonata(lfh, f);
+	// endrule
 		
     method ActionValue#(Mem) getIReq();
         toImem.deq();
