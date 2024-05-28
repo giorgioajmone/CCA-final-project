@@ -102,8 +102,8 @@ module mkCore(CoreInterface);
         if (req.byte_en == 'hf) begin
             if (req.addr == 'hf000_fff4) begin
                 mmio2host.enq({1'b1,req.data});
+                mmioreq.enq(req);
             end
-            mmioreq.enq(req);
         end
         if (req.addr ==  'hf000_fff0) begin
             uart2hostOutFIFO.enq(req.data[7:0]);
