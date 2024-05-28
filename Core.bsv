@@ -17,8 +17,22 @@ interface CoreInterface;
     method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data);
     method ActionValue#(ExchangeData) response(ComponentId id);
     method ActionValue#(Bit#(33)) getMMIO;
-    method ActionValue#(Bool) getHalt;
+    method Action getHalt;
+
+    //UART
+    method ActionValue#(Bit#(8)) uart2hostOutGET;
+    method ActionValue#(Bool) uart2hostAvGET;
+    method ActionValue#(Bool) uart2hostInGET;
+    method Action host2uartAvPUT(Bit#(8) available);
+    method Action host2uartInPUT(Bit#(8) data);
+
 endinterface
+
+typedef enum {
+    MMIOIdle,
+    WaitingAvail,
+    WaitingData
+} MMIOState deriving (Bits, Eq, FShow);
 
 (* synthesize *)
 module mkCore(CoreInterface);
@@ -34,6 +48,21 @@ module mkCore(CoreInterface);
     Reg#(Bool) doCanonicalize <- mkReg(False);
     FIFO#(Bit#(33)) mmio2host <- mkFIFO;
     FIFO#(Bool) haltFIFO <- mkFIFO;
+
+    //UART
+    Reg#(MMIOState) mmio_state <- mkReg(MMIOIdle);
+
+    //Token FIFO
+    FIFO#(Mem) reqAvFIFO <- mkFIFO;
+    FIFO#(Mem) reqInFIFO <- mkFIFO;
+
+    //Connectal
+    FIFO#(Bit#(8)) host2uartAvFIFO <- mkFIFO;
+    FIFO#(Bit#(8)) host2uartInFIFO <- mkFIFO;
+    FIFO#(Bit#(8)) uart2hostOutFIFO <- mkFIFO;
+    FIFO#(Bool) uart2hostInFIFO <- mkFIFO;
+    FIFO#(Bool) uart2hostAvFIFO <- mkFIFO;
+
 
     rule requestI;
         let req <- rv_core.getIReq;
@@ -67,23 +96,65 @@ module mkCore(CoreInterface);
         rv_core.getDResp(req);
     endrule
   
-    rule requestMMIO;
+    rule requestMMIO if(mmio_state == MMIOIdle);
         let req <- rv_core.getMMIOReq;
         if (debug) $display("Get MMIOReq", fshow(req));
         if (req.byte_en == 'hf) begin
             if (req.addr == 'hf000_fff4) begin
-                mmio2host.enq({1'b1,req.data}); // print integer
+                mmio2host.enq({1'b1,req.data});
             end
+            mmioreq.enq(req);
         end
         if (req.addr ==  'hf000_fff0) begin
-            mmio2host.enq(zeroExtend(req.data[7:0])); // print character
+            uart2hostOutFIFO.enq(req.data[7:0]);
+            mmioreq.enq(req);
         end else if (req.addr == 'hf000_fff8) begin
             Bit#(32) processed_data = (req.data << 1) | 32'b1;
-            mmio2host.enq({1'b0, processed_data << 8}); // print whether the test is passed or failed
+            mmio2host.enq({1'b0, processed_data << 8});
+            mmioreq.enq(req);
+        end else if(req.addr == 'hf000_0000) begin
+            if (req.byte_en == 'h0) begin
+                mmio_state <= WaitingData;
+                reqInFIFO.enq(req);
+                uart2hostInFIFO.enq(?);
+            end else begin
+                uart2hostOutFIFO.enq(req.data[7:0]);
+                mmioreq.enq(req);
+            end
+        end else if(req.addr == 'hf000_0005) begin
+            uart2hostAvFIFO.enq(?);
+            reqAvFIFO.enq(req);
+            mmio_state <= WaitingAvail;
         end else if(req.addr == 'hf000_fffc && req.byte_en != 0) begin
             haltFIFO.enq(?);
+            mmioreq.enq(req);
         end
-        mmioreq.enq(req);
+    endrule
+
+    rule uartAvailRespMMIO if (mmio_state == WaitingAvail);
+        let req = reqAvFIFO.first();
+        reqAvFIFO.deq();
+        let avail = host2uartAvFIFO.first();
+        host2uartAvFIFO.deq();
+
+        let newReq = Mem {addr: req.addr, data: zeroExtend(avail), byte_en: req.byte_en};
+
+        if (debug) $display("Avail Response: ", fshow(newReq));
+        mmioreq.enq(newReq);
+        mmio_state <= MMIOIdle;
+    endrule
+
+    rule uartDataRespMMIO if (mmio_state == WaitingData);
+        let req = reqInFIFO.first();
+        reqInFIFO.deq();
+        let data = host2uartInFIFO.first();
+        host2uartInFIFO.deq();
+
+        let newReq = Mem {addr: req.addr, data: zeroExtend(data), byte_en: req.byte_en };
+
+        if (debug) $display("Data Response: ", fshow(newReq));
+        mmioreq.enq(newReq);
+        mmio_state <= MMIOIdle;
     endrule
 
     rule responseMMIO;
@@ -159,9 +230,30 @@ module mkCore(CoreInterface);
         return mmio2host.first();
     endmethod
 
-    method ActionValue#(Bool) getHalt;
+    method Action getHalt;
         haltFIFO.deq();
-        return haltFIFO.first();
+    endmethod
+
+    method ActionValue#(Bit#(8)) uart2hostOutGET;
+        uart2hostOutFIFO.deq();
+        return uart2hostOutFIFO.first();
+    endmethod
+
+    method ActionValue#(Bool) uart2hostAvGET;
+        uart2hostAvFIFO.deq();
+        return uart2hostAvFIFO.first();
     endmethod
     
+    method ActionValue#(Bool) uart2hostInGET;
+        uart2hostInFIFO.deq();
+        return uart2hostInFIFO.first();
+    endmethod
+
+    method Action host2uartAvPUT(Bit#(8) available);
+        host2uartAvFIFO.enq(available);
+    endmethod
+
+    method Action host2uartInPUT(Bit#(8) data);
+        host2uartInFIFO.enq(data);
+    endmethod
 endmodule

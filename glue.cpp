@@ -1,17 +1,20 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <semaphore.h>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
 #include <atomic>
+#include <semaphore.h>
 
 #include "json.hpp"
 #include "CoreParameters.hpp"
 #include "CoreRequest.h"
 #include "CoreIndication.h"
 #include "GeneratedTypes.h"
+
+
+#define POS_MOD(a, b) ((a) % (b) + (b)) % (b)
 
 using json = nlohmann::json;
 
@@ -22,6 +25,48 @@ std::atomic_uint64_t quit_flag = {0};
 static CoreRequestProxy *coreRequestProxy = 0;
 
 static uint64_t receivedData[8] = {0};
+
+class Buffer {
+public:
+    Buffer() : count(0), head(0) {
+        data = new char[SIZE];
+        sem_init(&can_read, 0, 0);
+    }
+    ~Buffer() {
+        delete [] data;
+    }
+    void enq(char c) {
+        if (count < SIZE) {
+            count++;
+            data[head + count] = c;
+            sem_post(&can_read);
+        } else {
+            printf("Buffer full\n");
+        }
+    }
+    char deq() {
+        if (count > 0) {
+            count--;
+            head += POS_MOD(head, SIZE);
+            return data[head + count];
+        } else {
+            sem_wait(&can_read);
+            return deq();
+        }
+    }
+    bool empty() {
+        return count == 0;
+    }
+    unsigned int head;
+    unsigned int count;
+    char * data;
+
+    sem_t can_read;
+
+    static const int SIZE = 1024;
+};
+
+static Buffer * uart_buf;
 
 class CoreIndication final : public CoreIndicationWrapper {
 public:
@@ -72,10 +117,22 @@ public:
         }
     }
 
-    virtual void requestHalt(const int data) override {
+    virtual void requestOutUART(const uint8_t data) override {
+        putchar(data);
+    }
+
+    virtual void requestAvUART() override {
+        coreRequestProxy->responseAvUART(!uart_buf->empty());
+    }
+
+    virtual void requestInUART() override {
+        char c = uart_buf->deq();
+        coreRequestProxy->responseInUART(c);
+    }
+
+    virtual void requestHalt() override {
         assert(halt_flag.load() == 1);
         halt_flag.fetch_sub(1);
-
     }
 
     CoreIndication(unsigned int id) : CoreIndicationWrapper(id) {}
@@ -338,6 +395,8 @@ int main(int argc, const char **argv)
     halt_flag.store(1);
     quit_flag.store(1);
 
+    uart_buf = new Buffer();
+
 
     int status = setClockFrequency(0, requestedFrequency, &actualFrequency);
     fprintf(stderr, "Requested main clock frequency %5.2f, actual clock frequency %5.2f MHz status=%d errno=%d\n",
@@ -347,12 +406,17 @@ int main(int argc, const char **argv)
 
 
     // s[ave], l[oad], h[alt], r[estart], c[anonicalize], q[uit]
-
+    char userChar;
     std::string command;
+
     while (true) {
-        std::cout << "Enter command (s[ave], l[oad], h[alt], r[estart], c[anonicalize], q[uit]): ";
+        std::cout << "Enter command (s[ave], l[oad], h[alt], r[estart], c[anonicalize], w[rite], q[uit]): " << std::endl;
         std::cin >> command;
-        if (command == "s" || command == "save") {
+        if (command == "w" || command == "write") {
+            std::cout << "Please enter a character: ";
+            std::cin >> userChar;
+            uart_buf->enq(userChar);
+        } else if (command == "s" || command == "save") {
             std::string filePath;
             std::cout << "Enter the file path to save: ";
             std::cin >> filePath;

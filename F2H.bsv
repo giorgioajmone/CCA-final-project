@@ -31,7 +31,10 @@ interface CoreIndication;
     method Action canonicalized;
     method Action response(Vector#(16,Bit#(32)) data);
     method Action requestMMIO(Bit#(33) data);
-    method Action requestHalt(Bool data);
+    method Action requestHalt;
+    method Action requestOutUART(Bit#(8) data);
+    method Action requestInUART;
+    method Action requestAvUART;
 endinterface
 
 interface CoreRequest;
@@ -39,6 +42,8 @@ interface CoreRequest;
     method Action canonicalize;
     method Action restart;
     method Action request(Bit#(1) operation, Bit#(3) id, Bit#(32) addr, Vector#(16,Bit#(32)) data);
+    method Action responseInUART(Bit#(8) data);
+    method Action responseAvUART(Bit#(8) available);
 endinterface
 
 interface F2H;
@@ -62,9 +67,24 @@ module mkF2H#(CoreIndication indication)(F2H);
         indication.requestMMIO(mmio);
     endrule
 
+    rule waitOutUART;
+        let uart <- core.uart2hostOutGET();
+        indication.requestOutUART(uart);
+    endrule
+
+    rule waitAvUART;
+        let uart <- core.uart2hostAvGET();
+        indication.requestAvUART();
+    endrule
+
+    rule waitInUART;
+        let uart <- core.uart2hostInGET();
+        indication.requestInUART();
+    endrule
+
     rule waitHaltRequest;
-        let haltRequest <- core.getHalt();
-        indication.requestHalt(haltRequest);
+        core.getHalt();
+        indication.requestHalt();
     endrule
 
     rule waitResponse;
@@ -72,7 +92,6 @@ module mkF2H#(CoreIndication indication)(F2H);
         inFlight.deq();
         let data <- core.response(component);
         indication.response(unpack(data));
-        // $display("F2H: response %x", data);
     endrule 
     
     rule halted if(isHalt);
@@ -113,11 +132,18 @@ module mkF2H#(CoreIndication indication)(F2H);
         endmethod
 
         method Action request(Bit#(1) operation, Bit#(3) id, Bit#(32) addr, Vector#(16,Bit#(32)) data);
-            // $display("F2H: request %d %d", id, addr);
             inFlight.enq(id);
             core.request(operation, id, addr, pack(data));
         endmethod
 
+        method Action responseInUART(Bit#(8) data);
+            core.host2uartInPUT(data);
+        endmethod 
+
+        method Action responseAvUART(Bit#(8) available); 
+            core.host2uartAvPUT(available);
+        endmethod
+        
     endinterface
 
 endmodule
