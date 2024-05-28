@@ -57,7 +57,7 @@ endmodule
 module mkMainMem(MainMem);
     BRAM_Configure cfg = defaultValue();
     cfg.loadFormat = tagged Hex "memlines.vmh";
-    BRAM1Port#(LineAddr, MainMemResp) bram <- mkBRAM1Server(cfg);
+    BRAM1Port#(Bit#(20), MainMemResp) bram <- mkBRAM1Server(cfg); // 20-bit address, 1MB entry, 64-bit data
 
     DelayLine#(20, MainMemResp) dl <- mkDL(); // Delay by 20 cycles
 
@@ -80,7 +80,7 @@ module mkMainMem(MainMem);
         bram.portA.request.put(BRAMRequest{
                     write: unpack(req.write),
                     responseOnWrite: True,
-                    address: req.addr,
+                    address: req.addr[19:0],
                     datain: req.data});
     endmethod
 
