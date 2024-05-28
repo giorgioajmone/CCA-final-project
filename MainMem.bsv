@@ -107,7 +107,8 @@ module mkMainMem(MainMem);
 
     method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data) if(doHalt);
         // $display("MainMem: Requesting display%d %d %d %d", operation, id, addr, data);
-        let address = addr[valueOf(LineAddrLength)-1:0];
+        // let address = addr[valueOf(LineAddrLength)-1:0];
+        let address = addr[19:0];
         if(operation == 0) begin
             bram.portA.request.put(BRAMRequest{write: unpack(0), responseOnWrite: True, address: address, datain: data});
         end else begin
