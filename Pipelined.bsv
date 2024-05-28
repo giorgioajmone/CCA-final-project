@@ -89,7 +89,7 @@ module mkPipelined(RVIfc);
 
     // Code to support Konata visualization
     String dumpFile = "output.log" ;
-    let lfh <- mkReg(InvalidFile);
+    // let lfh <- mkReg(InvalidFile);
     // Reg#(KonataId) fresh_id <- mkReg(0);
     // Reg#(KonataId) commit_id <- mkReg(0);
 
@@ -120,15 +120,15 @@ module mkPipelined(RVIfc);
     Reg#(Bool) isCanonicalized <- mkReg(True); // change also 
     FIFOF#(Bit#(32)) responseFIFO <- mkBypassFIFOF;
 
-    rule do_tic_logging;
-        if (starting) begin
-            let f <- $fopen(dumpFile, "w") ;
-            lfh <= f;
-            $fwrite(f, "Kanata\t0004\nC=\t1\n");
-            starting <= False;
-        end
-        // konataTic(lfh);
-    endrule
+    // rule do_tic_logging;
+    //     if (starting) begin
+    //         let f <- $fopen(dumpFile, "w") ;
+    //         lfh <= f;
+    //         $fwrite(f, "Kanata\t0004\nC=\t1\n");
+    //         starting <= False;
+    //     end
+    //     // konataTic(lfh);
+    // endrule
   
     rule fetch if (!starting && (!doHalt || (doCanonicalize && (exception.notEmpty || misprediction.notEmpty))) && !isCanonicalized);
         Bit#(32) pc_fetched = pc;
