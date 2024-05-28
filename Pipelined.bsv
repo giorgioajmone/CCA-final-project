@@ -120,14 +120,15 @@ module mkPipelined(RVIfc);
     Reg#(Bool) isCanonicalized <- mkReg(True); // change also 
     FIFOF#(Bit#(32)) responseFIFO <- mkBypassFIFOF;
 
-    rule do_tic_logging;
-        if (starting) begin
-            let f <- $fopen(dumpFile, "w") ;
-            lfh <= f;
-            $fwrite(f, "Kanata\t0004\nC=\t1\n");
-            starting <= False;
-        end
+    rule konataLogging if(!starting && (!doHalt || doCanonicalize) && !isCanonicalized);
         konataTic(lfh);
+    endrule
+
+    rule openFile if(starting);
+        let f <- $fopen(dumpFile, "w") ;
+        lfh <= f;
+        $fwrite(f, "Kanata\t0004\nC=\t1\n");
+        starting <= False;
     endrule
   
     rule fetch if (!starting && (!doHalt || (doCanonicalize && (exception.notEmpty || misprediction.notEmpty))) && !isCanonicalized);
