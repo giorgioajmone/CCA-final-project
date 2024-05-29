@@ -57,7 +57,7 @@ endmodule
 module mkMainMem(MainMem);
     BRAM_Configure cfg = defaultValue();
     cfg.loadFormat = tagged Hex "memlines.vmh";
-    BRAM1Port#(LineAddr, MainMemResp) bram <- mkBRAM1Server(cfg);
+    BRAM1Port#(Bit#(16), MainMemResp) bram <- mkBRAM1Server(cfg);
 
     DelayLine#(20, MainMemResp) dl <- mkDL(); // Delay by 20 cycles
 
@@ -80,7 +80,7 @@ module mkMainMem(MainMem);
         bram.portA.request.put(BRAMRequest{
                     write: unpack(req.write),
                     responseOnWrite: True,
-                    address: req.addr,
+                    address: req.addr[15:0],
                     datain: req.data});
     endmethod
 
@@ -107,7 +107,8 @@ module mkMainMem(MainMem);
 
     method Action request(Bit#(1) operation, ComponentId id, ExchangeAddress addr, ExchangeData data) if(doHalt);
         // $display("MainMem: Requesting display%d %d %d %d", operation, id, addr, data);
-        let address = addr[valueOf(LineAddrLength)-1:0];
+        // let address = addr[valueOf(LineAddrLength)-1:0];
+        let address = addr[15:0];
         if(operation == 0) begin
             bram.portA.request.put(BRAMRequest{write: unpack(0), responseOnWrite: True, address: address, datain: data});
         end else begin
