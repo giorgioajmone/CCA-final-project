@@ -111,7 +111,7 @@ module mkPipelined(RVIfc);
     FIFOF#(Bit#(32)) exception <- mkBypassFIFOF;
     
     Bool debug = False;    
-    Reg#(Bool) starting <- mkReg(True);
+    Reg#(Bool) starting <- mkReg(False);
 
     // INSTRUMENTATION
 
