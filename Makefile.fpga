@@ -7,4 +7,8 @@ CPPFILES= glue.cpp
 
 CONNECTALFLAGS += -D TRACE_PORTAL
 
+CONNECTALFLAGS += --mainclockperiod=20
+CONNECTALFLAGS += --bscflags="-steps-max-intervals 2000000"
+CONNECTALFLAGS += --bscflags="+RTS -K46777216 -RTS"
+
 include $(CONNECTALDIR)/Makefile.connectal
