@@ -94,14 +94,14 @@ You can save the snapshot of the processor by typing `s` in the prompt, then the
 There are many benefits of snapshoting a processor. With the snapshot, the same program running on the processor can be restarted from various places, including a RTL simulator, a FPGA, a software uArch simulator, or the same design on a different platform. This is useful for debugging, testing, and performance evaluation, by combining the advantages of different platforms.
 
 ```mermaid
-graph TD
-    RTL[RTL Simulator <img src="https://www.veripool.org/img/verilator_256_200_min.png"></img>] --> Snapshot
-    FPGA[FPGA Board <img src="https://d15cw65ipctsrr.cloudfront.net/a4/a980f083c811e8833a89f3a96a2e99/FPGA-LOGO.png"></img>] --> Snapshot
-    uArch_simulator[uArch Simulator <img src="https://upload.wikimedia.org/wikipedia/en/8/80/Gem5_Logo%2C_Veritcal_Color_Version.png"></img>] --> Snapshot[Snapshot File <img src="https://cdn-icons-png.freepik.com/512/136/136443.png"></img>]
+flowchart TD
+    RTL[RTL Simulator <img src="https://www.veripool.org/img/verilator_256_200_min.png" height=80 width=80></img>] --> Snapshot
+    FPGA[FPGA Board <img src="https://d15cw65ipctsrr.cloudfront.net/a4/a980f083c811e8833a89f3a96a2e99/FPGA-LOGO.png" height=90 width=90></img>] --> Snapshot
+    uArch_simulator[uArch Simulator <img src="https://upload.wikimedia.org/wikipedia/en/8/80/Gem5_Logo%2C_Veritcal_Color_Version.png" height=120 width=120></img>] --> Snapshot[Snapshot File <img src="https://cdn-icons-png.freepik.com/512/136/136443.png" height=100 width=100></img>]
 
-    Snapshot --> RTL1[RTL Simulator <img src="https://www.veripool.org/img/verilator_256_200_min.png"></img>]
-    Snapshot --> FPGA1[FPGA Board <img src="https://d15cw65ipctsrr.cloudfront.net/a4/a980f083c811e8833a89f3a96a2e99/FPGA-LOGO.png"></img>]
-    Snapshot --> uArch_simulator1[uArch Simulator <img src="https://upload.wikimedia.org/wikipedia/en/8/80/Gem5_Logo%2C_Veritcal_Color_Version.png"></img>]
+    Snapshot --> RTL1[RTL Simulator <img src="https://www.veripool.org/img/verilator_256_200_min.png" height=80 width=80></img>]
+    Snapshot --> FPGA1[FPGA Board <img src="https://d15cw65ipctsrr.cloudfront.net/a4/a980f083c811e8833a89f3a96a2e99/FPGA-LOGO.png" height=90 width=90></img>]
+    Snapshot --> uArch_simulator1[uArch Simulator <img src="https://upload.wikimedia.org/wikipedia/en/8/80/Gem5_Logo%2C_Veritcal_Color_Version.png" height=120 width=120></img>]
 ```
 
 <!-- What to snapshot? -->
