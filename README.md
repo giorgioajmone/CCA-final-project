@@ -80,5 +80,10 @@ You can save the snapshot of the processor by typing `s` in the prompt, then the
 
 ## Motivation
 
+<!--Why snapshotting the processor?-->
+There are many benefits of snapshoting a processor. With the snapshot, the same program running on the processor can be restarted from various places, including a RTL simulator, a FPGA, a software uArch simulator, or the same design on a different platform. This is useful for debugging, testing, and performance evaluation.
+
+<!-- What to snapshot? -->
+
 ## Design
 
