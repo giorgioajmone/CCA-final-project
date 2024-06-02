@@ -7,4 +7,6 @@ CPPFILES= glue.cpp
 
 CONNECTALFLAGS += -D TRACE_PORTAL
 
+CONNECTALFLAGS += --bscflags="-D KONATA"
+
 include $(CONNECTALDIR)/Makefile.connectal

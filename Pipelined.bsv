@@ -89,7 +89,9 @@ module mkPipelined(RVIfc);
 
     // Code to support Konata visualization
     String dumpFile = "output.log" ;
+`ifdef KONATA
     let lfh <- mkReg(InvalidFile);
+`endif
     Reg#(KonataId) fresh_id <- mkReg(0);
     Reg#(KonataId) commit_id <- mkReg(0);
 
@@ -120,14 +122,18 @@ module mkPipelined(RVIfc);
     Reg#(Bool) isCanonicalized <- mkReg(True); // change also 
     FIFOF#(Bit#(32)) responseFIFO <- mkBypassFIFOF;
 
+`ifdef KONATA
     rule konataLogging if(!starting && (!doHalt || doCanonicalize) && !isCanonicalized);
         konataTic(lfh);
     endrule
+`endif
 
     rule openFile if(starting);
-        let f <- $fopen(dumpFile, "w") ;
-        lfh <= f;
-        $fwrite(f, "Kanata\t0004\nC=\t1\n");
+        `ifdef KONATA
+            let f <- $fopen(dumpFile, "w") ;
+            lfh <= f;
+            $fwrite(f, "Kanata\t0004\nC=\t1\n");
+        `endif
         starting <= False;
     endrule
   
@@ -151,8 +157,13 @@ module mkPipelined(RVIfc);
             epoch = ~epoch_fetch[0];
         end
         pc <= pc_predicted;
-        let iid <- fetch1Konata(lfh, fresh_id, 0);
-        labelKonataLeft(lfh, iid, $format("0x%x: ", pc_fetched));
+
+        `ifdef KONATA
+            let iid <- fetch1Konata(lfh, fresh_id, 0);
+            labelKonataLeft(lfh, iid, $format("0x%x: ", pc_fetched));
+        `else
+            let iid = 0;
+        `endif
         
         f2d.enq(F2D{ pc: pc_fetched, ppc: pc_predicted, epoch: epoch, k_id: iid});
         toImem.enq(Mem{ byte_en: 0, addr: pc_fetched, data: 0});
@@ -165,8 +176,12 @@ module mkPipelined(RVIfc);
         let instr = fromImem.first();
         let dinst = decodeInst(instr.data);
         let current_id = f.k_id;
-        decodeKonata(lfh, current_id);
-        labelKonataLeft(lfh, current_id, $format("DASM(%x)", instr.data));
+
+        `ifdef KONATA
+            decodeKonata(lfh, current_id);
+            labelKonataLeft(lfh, current_id, $format("DASM(%x)", instr.data));
+        `endif
+
         if (f.epoch != epoch_fetch[1] || !dinst.legal) begin
             f2d.deq();
             fromImem.deq();
@@ -195,7 +210,9 @@ module mkPipelined(RVIfc);
         let rv2 = d.rv2;
         let e_pc = d.pc;
         if (debug) $display("[Execute] ", fshow(dInst));
+        `ifdef KONATA
             executeKonata(lfh, current_id);
+        `endif
         if (d.epoch != epoch_execute[1]) begin
             squashed.enq(current_id);
             e2w.enq(E2W{ mem_business: MemBusiness{isUnsigned: unpack(0), size: unpack(0), offset: unpack(0), mmio: False}, data: unpack(0), dinst: dInst, squashed: True, k_id: current_id});
@@ -227,18 +244,26 @@ module mkPipelined(RVIfc);
                 if (isMMIO(addr)) begin 
                     if (debug) $display("[Execute] MMIO", fshow(req));
                     toMMIO.enq(req);
-                    labelKonataLeft(lfh,current_id, $format(" (MMIO)", fshow(req)));
+                    `ifdef KONATA
+                        labelKonataLeft(lfh,current_id, $format(" (MMIO)", fshow(req)));
+                    `endif
                     mmio = True;
                 end else begin 
-                    labelKonataLeft(lfh,current_id, $format(" (MEM)", fshow(req)));
+                    `ifdef KONATA
+                        labelKonataLeft(lfh,current_id, $format(" (MEM)", fshow(req)));
+                    `endif
                     toDmem.enq(req);
                 end
             end
             else if (isControlInst(dInst)) begin
-                labelKonataLeft(lfh,current_id, $format(" (CTRL)"));
+                `ifdef KONATA
+                    labelKonataLeft(lfh,current_id, $format(" (CTRL)"));
+                `endif
                 data = e_pc + 4;
             end else begin 
-                labelKonataLeft(lfh,current_id, $format(" (ALU)"));
+                `ifdef KONATA
+                    labelKonataLeft(lfh,current_id, $format(" (ALU)"));
+                `endif
             end
             let controlResult = execControl32(dInst.inst, rv1, rv2, imm, e_pc);
             let nextPc = controlResult.nextPC;
@@ -259,7 +284,9 @@ module mkPipelined(RVIfc);
         let data = e.data;
         let mem_business = e.mem_business;
         let fields = getInstFields(dInst.inst);
-        writebackKonata(lfh,current_id);
+        `ifdef KONATA
+            writebackKonata(lfh,current_id);
+        `endif
         if (e.squashed) begin
             if (debug) $display("[Writeback] Squashed", fshow(dInst));
             if (dInst.valid_rd) begin
@@ -310,9 +337,11 @@ module mkPipelined(RVIfc);
 
 	// ADMINISTRATION:
 
+`ifdef KONATA
     rule administrative_konata_commit;
         retired.deq();
         let f = retired.first();
+        
         commitKonata(lfh, f, commit_id);
 	endrule
 		
@@ -321,6 +350,7 @@ module mkPipelined(RVIfc);
         let f = squashed.first();
         squashKonata(lfh, f);
 	endrule
+`endif
 		
     method ActionValue#(Mem) getIReq();
         toImem.deq();
